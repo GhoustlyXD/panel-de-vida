@@ -161,8 +161,8 @@
         S.rates = { EUR: r.eurUsd, RUB: r.rubUsd, ts: Date.now(), dia: r.dia, fuente: r.fuente, actualizado: r.actualizado };
         store.set("rates", S.rates);
         render();
-        if (force) toast("Cambio actualizado");
-        if (r.aviso) toast(r.aviso, true);
+        if (r.aviso) { if (force) toast(r.aviso, true); }
+        else if (force) toast(r.nota ? "Cambio actualizado (con fuente alternativa)" : "Cambio actualizado");
       }
     } catch (e) { if (force) toast("No se pudo actualizar el cambio: " + e.message, true); }
     finally { ratesBusy = false; const b = $("#ratesBtn"); if (b) b.classList.remove("spin"); }
