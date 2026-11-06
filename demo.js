@@ -3,7 +3,7 @@ window.DEMO_DATA = (() => {
   const d = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
   let i = 0;
   const id = () => "demo-" + (++i);
-  return {
+  const D = {
     pedidos: [
       { id: id(), Cliente: "Nova — Espada rúnica", Encargo: "Espada rúnica", Estado: "En curso", Precio: 120, Moneda: "USD", Cobrado: 60, "Fecha de pedido": d(-6), "Fecha de entrega": d(2), "Segundos trabajados": 7420 },
       { id: id(), Cliente: "Kiro — Dragón low-poly", Encargo: "Dragón low-poly", Estado: "Sin empezar", Precio: 60000, Moneda: "Robux", Cobrado: 0, "Fecha de pedido": d(-3), "Fecha de entrega": d(-1), "Segundos trabajados": 0 },
@@ -38,5 +38,14 @@ window.DEMO_DATA = (() => {
       { id: id(), Bloque: "Dormir", Hora: "Sobre las 23:00", Orden: 4 },
     ],
     ventas: [],
+    clientes: [],
   };
+  // Una ficha por cliente, enlazada a sus pedidos.
+  D.pedidos.forEach((p) => {
+    const name = p.Cliente.split(" — ")[0];
+    let c = D.clientes.find((x) => x.Nombre === name);
+    if (!c) { c = { id: id(), Nombre: name, Desde: p["Fecha de pedido"], Canal: "Discord" }; D.clientes.push(c); }
+    p["Ficha de cliente"] = [c.id];
+  });
+  return D;
 })();

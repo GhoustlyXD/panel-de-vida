@@ -57,7 +57,7 @@
   // ================= Estado =================
   const CFG = window.PANEL_CONFIG || {};
   const S = {
-    data: { pedidos: [], cuentas: [], funpay: [], tareas: [], rutina: [], ventas: [] },
+    data: { pedidos: [], cuentas: [], funpay: [], tareas: [], rutina: [], ventas: [], clientes: [] },
     cur: store.get("cur", "USD"),
     rates: store.get("rates", { EUR: 0.92, RUB: 81, ts: 0 }),
     robux: store.get("robuxRate", 0.0035),
@@ -108,7 +108,8 @@
   }
 
   async function loadAll() {
-    S.data = await api("GET", "all");
+    const d = await api("GET", "all");
+    S.data = { pedidos: [], cuentas: [], funpay: [], tareas: [], rutina: [], ventas: [], clientes: [], ...d };
     S.loaded = true;
   }
 
@@ -208,12 +209,31 @@
     const title = p.Encargo || (i >= 0 ? t.slice(i + 3) : "") || client;
     return { client, title };
   };
+  // Clientes: la ficha enlazada manda; si un pedido no tiene ficha, se usa el nombre del título.
+  const normId = (id) => String(id || "").replace(/-/g, "");
+  const clientById = (id) => S.data.clientes.find((c) => normId(c.id) === normId(id));
+  const clientByName = (n) => S.data.clientes.find((c) => (c.Nombre || "").trim().toLowerCase() === String(n || "").trim().toLowerCase());
+  const clientIdOf = (p) => { const r = p["Ficha de cliente"]; return Array.isArray(r) && r.length ? r[0] : null; };
+  async function ensureClient(name) {
+    name = String(name || "").trim();
+    if (!name) return null;
+    const ex = clientByName(name);
+    if (ex) return ex.id;
+    const c = await create("clientes", { Nombre: name, Desde: todayISO() });
+    if (c) toast(`Cliente nuevo: ${name}`);
+    return c ? c.id : null;
+  }
+  const clientOptions = () => [...S.data.clientes].sort((a, b) => (a.Nombre || "").localeCompare(b.Nombre || "")).map((c) => `<option value="${esc(c.Nombre)}">`).join("");
   const ped = () => S.data.pedidos.map((p) => {
-    const { client, title } = splitName(p);
+    const sp = splitName(p);
+    const ficha = clientById(clientIdOf(p));
+    const client = ficha ? ficha.Nombre : sp.client;
+    const title = sp.title;
+    const clientId = ficha ? ficha.id : (clientByName(sp.client) || {}).id || null;
     const usd = toUSD(p.Precio, p.Moneda);
     const paidUsd = toUSD(p.Cobrado, p.Moneda);
     const paidOn = p["Fecha de pago"] || (p.Estado === "Listo" ? p["Fecha de entrega"] || p["Fecha de pedido"] : null);
-    return { ...p, client, title, usd, paidUsd, paidOn };
+    return { ...p, client, clientId, title, usd, paidUsd, paidOn };
   });
   const pending = () => ped().filter((p) => PEND.includes(p.Estado));
   const awaiting = () => ped().filter((p) => p.Estado === "En espera de revisión");
@@ -590,14 +610,13 @@
   // ================= Vista: Pendientes =================
   VIEWS.pendientes = () => {
     const pe = pending().sort((a, b) => (a["Fecha de entrega"] || "9").localeCompare(b["Fecha de entrega"] || "9"));
-    const clients = [...new Set(ped().map((p) => p.client))].sort();
     return `
       <div class="h-date">&nbsp;</div>
       <div class="h1">Pendientes</div>
       <form class="addrow" id="addPend">
         <input class="inp grow" name="title" placeholder="Nueva comisión pendiente" required autocomplete="off">
-        <input class="inp" name="client" list="clientsList" placeholder="Cliente" style="width:130px" required autocomplete="off">
-        <datalist id="clientsList">${clients.map((c) => `<option value="${esc(c)}">`).join("")}</datalist>
+        <input class="inp" name="client" list="clientsList" placeholder="Cliente (elige o escribe uno nuevo)" title="Elige un cliente de la lista o escribe un nombre nuevo para crearlo" style="width:200px" required autocomplete="off">
+        <datalist id="clientsList">${clientOptions()}</datalist>
         <input class="inp" name="price" type="number" step="0.01" min="0" placeholder="Precio" style="width:96px">
         <select class="sel" name="cur">${["USD", "EUR", "RUB", "Robux"].map((c) => `<option ${c === "USD" ? "selected" : ""}>${c}</option>`).join("")}</select>
         <input class="inp" name="due" type="date" title="Fecha de entrega" style="width:150px">
@@ -621,29 +640,48 @@
 
   // ================= Vista: Clientes =================
   let clientQ = "";
-  VIEWS.clientes = () => {
+  // Une cada cliente de la base con sus pedidos (por la ficha enlazada o, si falta, por el nombre).
+  function clientStats() {
     const by = {};
+    S.data.clientes.forEach((c) => (by["id:" + normId(c.id)] = { key: "id:" + normId(c.id), id: c.id, rec: c, name: c.Nombre || "Sin nombre", paid: 0, n: 0, open: 0, last: c.Desde || "", items: [] }));
     ped().forEach((p) => {
-      const c = (by[p.client] ||= { name: p.client, paid: 0, n: 0, open: 0, last: "", items: [] });
+      const key = p.clientId ? "id:" + normId(p.clientId) : "name:" + p.client;
+      const c = (by[key] ||= { key, id: null, rec: null, name: p.client, paid: 0, n: 0, open: 0, last: "", items: [] });
       c.items.push(p);
       if (p.Estado === "Listo") { c.paid += p.usd; c.n++; }
       if (PEND.includes(p.Estado) || p.Estado === "En espera de revisión") c.open += Math.max(0, p.usd - p.paidUsd);
       const d = p.paidOn || p["Fecha de pedido"] || "";
       if (d > c.last) c.last = d;
     });
-    const list = Object.values(by).filter((c) => c.name.toLowerCase().includes(clientQ.toLowerCase())).sort((a, b) => b.paid - a.paid);
+    return Object.values(by);
+  }
+
+  VIEWS.clientes = () => {
+    const all = clientStats();
+    const list = all.filter((c) => c.name.toLowerCase().includes(clientQ.toLowerCase())).sort((a, b) => b.paid - a.paid || b.items.length - a.items.length);
+    const total = all.reduce((a, c) => a + c.paid, 0);
+    const repeat = all.filter((c) => c.n > 1);
+    const top = all.slice().sort((a, b) => b.paid - a.paid)[0];
+    const sinFicha = all.filter((c) => !c.id).length;
     return `
       <div class="h-date">&nbsp;</div>
-      <div class="h1">Clientes <span class="muted" style="font-size:14px;font-weight:500">${Object.keys(by).length}</span></div>
-      <div class="addrow"><span class="muted" style="padding-left:6px">${I("search")}</span><input class="inp grow" id="clientQ" placeholder="Buscar cliente" value="${esc(clientQ)}" style="border:0;background:none;box-shadow:none" autocomplete="off"></div>
+      <div class="h1">Clientes <button class="btn" data-newclient>${I("plus")} Cliente</button></div>
+      <div class="grid g4 stagger">
+        ${stat("users", "Clientes", all.filter((c) => c.id).length, sinFicha ? `${sinFicha} sin ficha` : "en tu base de Notion")}
+        ${stat("wallet", "Cobrado en total", money(total), "pedidos pagados")}
+        ${stat("trend", "Mejor cliente", top && top.paid ? esc(top.name) : "—", top && top.paid ? money(top.paid) + (total ? ` · ${Math.round((top.paid / total) * 100)}% del total` : "") : "")}
+        ${stat("repeat", "Repiten", repeat.length, total ? `${Math.round((repeat.reduce((a, c) => a + c.paid, 0) / total) * 100)}% de lo cobrado` : "")}
+      </div>
+      <div class="addrow" style="margin-top:14px"><span class="muted" style="padding-left:6px">${I("search")}</span><input class="inp grow" id="clientQ" placeholder="Buscar cliente" value="${esc(clientQ)}" style="border:0;background:none;box-shadow:none" autocomplete="off"></div>
       <div class="grid g3 stagger">${list.map((c) => `
-        <div class="card hov click" data-client="${esc(c.name)}">
+        <div class="card hov click" data-client="${esc(c.key)}">
           <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px">${avatar(c.name, true)}
-            <div style="min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</div><div class="muted" style="font-size:12px">${c.items.length} pedido${c.items.length > 1 ? "s" : ""} · ${fmtDate(c.last)}</div></div></div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-end">
-            <div><div class="muted" style="font-size:11.5px">Pagado</div><div style="font-size:20px;font-weight:700">${money(c.paid)}</div></div>
-            ${c.open ? `<span class="tag warn">${money(c.open)} pendiente</span>` : c.n > 1 ? `<span class="tag ok">Repite</span>` : ""}
+            <div style="min-width:0"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</div><div class="muted" style="font-size:12px">${c.items.length} pedido${c.items.length === 1 ? "" : "s"}${c.last ? " · " + fmtDate(c.last) : ""}${c.rec && c.rec.Canal ? " · " + esc(c.rec.Canal) : ""}</div></div></div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px">
+            <div><div class="muted" style="font-size:11.5px">Cobrado</div><div style="font-size:20px;font-weight:700">${money(c.paid)}</div></div>
+            ${!c.id ? `<span class="tag gray">Sin ficha</span>` : c.open ? `<span class="tag warn">${money(c.open)} pendiente</span>` : c.n > 1 ? `<span class="tag ok">Repite</span>` : ""}
           </div>
+          ${total && c.paid ? `<div class="progress" style="margin-top:12px;height:4px"><div data-w="${(c.paid / (top.paid || 1)) * 100}%"></div></div>` : ""}
         </div>`).join("") || `<div class="empty">Sin resultados</div>`}</div>`;
   };
 
@@ -743,14 +781,15 @@
   }
   const opt = (list, v) => list.map((o) => `<option ${o === v ? "selected" : ""}>${esc(o)}</option>`).join("");
 
-  function pedidoModal(p) {
+  function pedidoModal(p, presetClient) {
     const isNew = !p;
     p = p || { Estado: "Sin empezar", Moneda: "USD", "Fecha de pedido": todayISO() };
-    const nm = isNew ? { client: "", title: "" } : splitName(p);
+    const nm = isNew ? { client: presetClient || "", title: "" } : splitName(p);
+    if (!isNew) { const f = clientById(clientIdOf(p)); if (f) nm.client = f.Nombre; }
     const m = modal(`
       <h3>${isNew ? "Nueva comisión" : "Editar comisión"} <button class="ib" data-close>${I("x")}</button></h3>
       <form class="form">
-        <div class="two"><label>Cliente<input class="inp" name="client" value="${esc(nm.client)}" required></label><label>Encargo<input class="inp" name="title" value="${esc(p.Encargo || nm.title)}"></label></div>
+        <div class="two"><label>Cliente <span class="dim" id="cliHint"></span><input class="inp" name="client" list="clientsListM" value="${esc(nm.client)}" placeholder="Elige o escribe uno nuevo" required autocomplete="off"><datalist id="clientsListM">${clientOptions()}</datalist></label><label>Encargo<input class="inp" name="title" value="${esc(p.Encargo || nm.title)}"></label></div>
         <div class="two"><label>Precio<input class="inp" name="Precio" type="number" step="0.01" value="${esc(p.Precio ?? "")}"></label><label>Moneda<select class="sel" name="Moneda">${opt(["USD", "EUR", "RUB", "Robux"], p.Moneda)}</select></label></div>
         <div class="two"><label>Estado<select class="sel" name="Estado">${opt(["Sin empezar", "En curso", "Posible comisión", "En espera de revisión", "Listo", "Cancelado"], p.Estado)}</select></label><label>Cobrado<input class="inp" name="Cobrado" type="number" step="0.01" value="${esc(p.Cobrado ?? "")}"></label></div>
         <div class="two"><label>Fecha de pedido<input class="inp" name="Fecha de pedido" type="date" value="${esc(p["Fecha de pedido"] || "")}"></label><label>Fecha de entrega<input class="inp" name="Fecha de entrega" type="date" value="${esc(p["Fecha de entrega"] || "")}"></label></div>
@@ -758,10 +797,17 @@
         <label>Canal<select class="sel" name="Canal"><option></option>${opt(["Fiverr", "Comisiones - Ghoustly", "Redes sociales", "Web ghoustly3d.com", "Otro"], p.Canal)}</select></label>
         <div class="acts"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn">${isNew ? "Crear" : "Guardar"}</button></div>
       </form>`);
-    $("form", m.el).addEventListener("submit", (e) => {
+    const cin = $("input[name=client]", m.el), hint = $("#cliHint", m.el);
+    const showHint = () => { const v = cin.value.trim(); hint.textContent = !v ? "" : clientByName(v) ? "· cliente existente" : "· se creará como cliente nuevo"; };
+    cin.addEventListener("input", showHint); showHint();
+    $("form", m.el).addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = Object.fromEntries(new FormData(e.target));
+      m.close();
+      const cid = await ensureClient(fd.client);
+      fd.client = (clientById(cid) || {}).Nombre || fd.client.trim();
       const v = {
+        "Ficha de cliente": cid ? [cid] : [],
         Cliente: fd.title && fd.title !== fd.client ? `${fd.client.trim()} — ${fd.title.trim()}` : fd.client.trim(),
         Encargo: fd.title.trim(),
         Precio: fd.Precio === "" ? null : Number(fd.Precio),
@@ -770,7 +816,6 @@
         "Fecha de pedido": fd["Fecha de pedido"] || null, "Fecha de entrega": fd["Fecha de entrega"] || null,
         "Método de pago": fd["Método de pago"] || null, "Fecha de pago": fd["Fecha de pago"] || null, Canal: fd.Canal || null,
       };
-      m.close();
       isNew ? create("pedidos", v) : patch("pedidos", p.id, v);
     });
   }
@@ -824,18 +869,72 @@
     });
   }
 
-  function clientModal(name) {
-    const items = ped().filter((p) => p.client === name).sort((a, b) => (b["Fecha de pedido"] || "").localeCompare(a["Fecha de pedido"] || ""));
-    const paidT = items.filter((p) => p.Estado === "Listo").reduce((a, p) => a + p.usd, 0);
+  const CANALES = ["Fiverr", "Comisiones - Ghoustly", "Redes sociales", "Web ghoustly3d.com", "Discord", "Otro"];
+
+  function clientModal(key) {
+    const c = clientStats().find((x) => x.key === key);
+    if (!c) return;
+    const items = c.items.slice().sort((a, b) => (b["Fecha de pedido"] || "").localeCompare(a["Fecha de pedido"] || ""));
+    const valid = items.filter((p) => p.Estado !== "Cancelado");
     const tag = (s) => s === "Listo" ? "ok" : s === "Cancelado" ? "bad" : s === "En espera de revisión" ? "warn" : "blue";
-    modal(`
-      <h3><span style="display:flex;gap:10px;align-items:center">${avatar(name, true)}${esc(name)}</span><button class="ib" data-close>${I("x")}</button></h3>
-      <div class="grid g3" style="margin:16px 0">
-        <div class="card stat"><div class="lb">Pagado</div><div class="v">${money(paidT)}</div></div>
+    const r = c.rec || {};
+    const m = modal(`
+      <h3><span style="display:flex;gap:10px;align-items:center">${avatar(c.name, true)}${esc(c.name)}</span><button class="ib" data-close>${I("x")}</button></h3>
+      <div class="grid g4" style="margin:16px 0">
+        <div class="card stat"><div class="lb">Cobrado</div><div class="v">${money(c.paid)}</div></div>
+        <div class="card stat"><div class="lb">Pendiente</div><div class="v">${money(c.open)}</div></div>
         <div class="card stat"><div class="lb">Pedidos</div><div class="v">${items.length}</div></div>
-        <div class="card stat"><div class="lb">Valor medio</div><div class="v">${money(items.length ? items.reduce((a, p) => a + p.usd, 0) / items.length : 0)}</div></div>
+        <div class="card stat"><div class="lb">Valor medio</div><div class="v">${money(valid.length ? valid.reduce((a, p) => a + p.usd, 0) / valid.length : 0)}</div></div>
       </div>
-      <div class="list">${items.map((p) => `<div class="item"><div class="main"><div class="t">${esc(p.title)}</div><div class="m">${fmtDate(p["Fecha de pedido"])}</div></div><span class="tag ${tag(p.Estado)}">${esc(p.Estado)}</span><span class="amt" style="margin-left:8px">${money(p.usd)}</span></div>`).join("")}</div>`, true);
+      ${c.id ? `
+      <form class="form" id="cliForm" style="margin-top:0">
+        <div class="two"><label>Nombre<input class="inp" name="Nombre" value="${esc(r.Nombre || "")}" required></label><label>Canal<select class="sel" name="Canal"><option></option>${opt(CANALES, r.Canal)}</select></label></div>
+        <div class="two"><label>Contacto<input class="inp" name="Contacto" value="${esc(r.Contacto || "")}" placeholder="Discord, email…"></label><label>Cliente desde<input class="inp" name="Desde" type="date" value="${esc(r.Desde || "")}"></label></div>
+        <label>Notas<input class="inp" name="Notas" value="${esc(r.Notas || "")}"></label>
+        <div class="acts"><button type="button" class="btn ghost" data-delcli>${I("trash")} Borrar</button><button type="button" class="btn ghost" data-newfor>${I("plus")} Comisión</button><button class="btn">Guardar</button></div>
+      </form>` : `
+      <div class="muted" style="font-size:12.5px;margin-bottom:12px">Este nombre aparece en pedidos pero no tiene ficha en tu base de Clientes.
+        <button class="btn sm" data-mkficha style="margin-left:6px">${I("plus")} Crear ficha y enlazar sus pedidos</button></div>`}
+      <div class="group-t">Pedidos</div>
+      <div class="list">${items.map((p) => `<div class="item"><div class="main"><div class="t">${esc(p.title)}</div><div class="m">${fmtDate(p["Fecha de pedido"])}${p.Moneda && p.Moneda !== "USD" && p.Precio != null ? " · " + raw(p.Precio, p.Moneda) : ""}</div></div><span class="tag ${tag(p.Estado)}">${esc(p.Estado)}</span><span class="amt" style="margin-left:8px">${money(p.usd)}</span></div>`).join("") || `<div class="empty">Aún no tiene pedidos</div>`}</div>`, true);
+
+    const f = $("#cliForm", m.el);
+    if (f) {
+      f.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const fd = Object.fromEntries(new FormData(f));
+        m.close();
+        patch("clientes", c.id, { Nombre: fd.Nombre.trim(), Canal: fd.Canal || null, Contacto: fd.Contacto, Notas: fd.Notas, Desde: fd.Desde || null });
+      });
+      $("[data-newfor]", m.el).addEventListener("click", () => { m.close(); pedidoModal(null, c.name); });
+      $("[data-delcli]", m.el).addEventListener("click", () => {
+        if (confirm(`¿Mover la ficha de "${c.name}" a la papelera de Notion? Sus pedidos no se borran.`)) { m.close(); remove("clientes", c.id); }
+      });
+    }
+    const mk = $("[data-mkficha]", m.el);
+    if (mk) mk.addEventListener("click", async () => {
+      m.close();
+      const id = await ensureClient(c.name);
+      if (id) for (const p of c.items) await patch("pedidos", p.id, { "Ficha de cliente": [id] });
+    });
+  }
+
+  function newClientModal() {
+    const m = modal(`
+      <h3>Nuevo cliente <button class="ib" data-close>${I("x")}</button></h3>
+      <form class="form">
+        <div class="two"><label>Nombre<input class="inp" name="Nombre" required></label><label>Canal<select class="sel" name="Canal"><option></option>${opt(CANALES, "")}</select></label></div>
+        <div class="two"><label>Contacto<input class="inp" name="Contacto" placeholder="Discord, email…"></label><label>Cliente desde<input class="inp" name="Desde" type="date" value="${todayISO()}"></label></div>
+        <label>Notas<input class="inp" name="Notas"></label>
+        <div class="acts"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn">Crear</button></div>
+      </form>`);
+    $("form", m.el).addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = Object.fromEntries(new FormData(e.target));
+      if (clientByName(fd.Nombre)) { toast("Ya existe un cliente con ese nombre", true); return; }
+      m.close();
+      create("clientes", { Nombre: fd.Nombre.trim(), Canal: fd.Canal || null, Contacto: fd.Contacto, Notas: fd.Notas, Desde: fd.Desde || null });
+    });
   }
 
   function bigChart(kind) {
@@ -917,15 +1016,19 @@
   };
   BIND.pendientes = () => {
     bindCommon();
-    $("#addPend").addEventListener("submit", (e) => {
+    $("#addPend").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const fd = Object.fromEntries(new FormData(e.target));
+      const form = e.target;
+      const fd = Object.fromEntries(new FormData(form));
+      form.reset();
+      const cid = await ensureClient(fd.client);
+      const name = (clientById(cid) || {}).Nombre || fd.client.trim();
       create("pedidos", {
-        Cliente: `${fd.client.trim()} — ${fd.title.trim()}`, Encargo: fd.title.trim(), Estado: "Sin empezar",
+        Cliente: `${name} — ${fd.title.trim()}`, Encargo: fd.title.trim(), Estado: "Sin empezar",
         Precio: fd.price === "" ? null : Number(fd.price), Moneda: fd.cur, Cobrado: 0, "Segundos trabajados": 0,
         "Fecha de pedido": todayISO(), "Fecha de entrega": fd.due || null,
+        "Ficha de cliente": cid ? [cid] : [],
       });
-      e.target.reset();
     });
     $$("#main .item [data-act]").forEach((b) => b.addEventListener("click", (e) => {
       const id = rowId(e), p = S.data.pedidos.find((x) => x.id === id);
@@ -958,6 +1061,7 @@
     const q = $("#clientQ");
     q.addEventListener("input", () => { clientQ = q.value; const pos = q.selectionStart; render(); const n = $("#clientQ"); n.focus(); n.setSelectionRange(pos, pos); });
     $$("[data-client]").forEach((c) => c.addEventListener("click", () => clientModal(c.dataset.client)));
+    const nb = $("[data-newclient]"); if (nb) nb.addEventListener("click", newClientModal);
   };
   BIND.dinero = () => {
     bindCommon();
