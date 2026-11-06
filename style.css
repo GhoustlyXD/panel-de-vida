@@ -232,6 +232,48 @@ table.tb { width: 100%; border-collapse: collapse; font-size: 13px; }
 .spin svg { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 600px) { .rates { border-radius: var(--radius); } }
+/* ---------- Galería de comisiones ---------- */
+.ggrid { display: grid; gap: 12px; }
+.ggrid.lg { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.ggrid.md { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.ggrid.sm { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ggrid.off .gcard { opacity: .55; }
+.gcard { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: transform .35s var(--ease), border-color .3s, box-shadow .3s; animation: rise .5s var(--ease) both; display: flex; flex-direction: column; }
+.gcard:hover { transform: translateY(-4px); border-color: #3a3a41; box-shadow: 0 14px 34px rgba(0,0,0,.5); }
+.gcard .cover { position: relative; aspect-ratio: 16 / 10; background: #0d0d0f; overflow: hidden; }
+.gcard.sm .cover { aspect-ratio: 4 / 3; }
+.gcard .cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .6s var(--ease); }
+.gcard:hover .cover img { transform: scale(1.06); }
+.gcard .cover .ph { position: absolute; inset: 0; display: grid; place-items: center; }
+.gcard .cover .ph span { font-size: 42px; font-weight: 700; opacity: .8; }
+.gcard.sm .cover .ph span { font-size: 28px; }
+.gcard .cover .count { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,.65); backdrop-filter: blur(6px); border-radius: 999px; padding: 2px 8px; font-size: 11px; }
+.gcard .cam { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 999px; display: grid; place-items: center; background: rgba(0,0,0,.6); backdrop-filter: blur(6px); color: #fff; opacity: 0; transform: scale(.85); transition: opacity .2s, transform .2s; }
+.gcard:hover .cam, .gcard .cam:focus { opacity: 1; transform: none; }
+@media (hover: none) { .gcard .cam { opacity: 1; transform: none; } }
+.gbody { padding: 12px 14px 14px; display: grid; gap: 4px; }
+.gcard.sm .gbody { padding: 9px 10px 10px; gap: 2px; }
+.gt { font-weight: 600; font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.gcard.lg .gt { font-size: 15.5px; }
+.gcard.sm .gt { font-size: 12.5px; white-space: nowrap; display: block; text-overflow: ellipsis; }
+.gm { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gcard.sm .gm { font-size: 11px; }
+.gp { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 4px; }
+.gp b { font-variant-numeric: tabular-nums; }
+.gcard.sm .gp b { font-size: 12.5px; }
+.gcard.sm .gp .tag { display: none; }
+.gacts { display: flex; gap: 6px; margin-top: 8px; }
+.gacts .sel { flex: 1; padding: 6px 24px 6px 10px; font-size: 12px; min-width: 0; }
+.viewer { position: relative; border-radius: var(--radius); background: #0b0b0c; border: 1px dashed var(--line); min-height: 220px; display: grid; place-items: center; overflow: hidden; transition: border-color .2s, background .2s; }
+.viewer.over { border-color: var(--accent); background: rgba(47,140,255,.08); }
+.viewer img { max-width: 100%; max-height: 60vh; display: block; animation: fadeIn .3s forwards; opacity: 0; }
+.viewer .nav-l, .viewer .nav-r { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,.6); color: #fff; }
+.viewer .nav-l { left: 10px; } .viewer .nav-r { right: 10px; }
+.dropmsg { color: var(--muted); text-align: center; display: grid; gap: 10px; place-items: center; padding: 30px; font-size: 13px; }
+.dropmsg svg { width: 30px; height: 30px; }
+.thumbs { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; }
+.thumbs img { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; cursor: pointer; opacity: .5; border: 2px solid transparent; transition: opacity .2s; }
+.thumbs img.on, .thumbs img:hover { opacity: 1; border-color: var(--accent); }
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); z-index: 70; background: var(--panel-2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .3s, transform .3s var(--ease); display: flex; gap: 8px; align-items: center; }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 .skel { background: linear-gradient(90deg, var(--panel) 0%, var(--panel-2) 50%, var(--panel) 100%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: var(--radius); }

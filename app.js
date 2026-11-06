@@ -50,6 +50,10 @@
       chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
       bag: '<path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2"/>',
       search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+      camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+      image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
+      chevl: '<path d="M15 6l-6 6 6 6"/>',
+      chevr: '<path d="M9 6l6 6-6 6"/>',
     }[name] || "";
     return `<svg class="i" viewBox="0 0 24 24">${p}</svg>`;
   };
@@ -65,6 +69,7 @@
     period: store.get("period", "mes"),
     goal: store.get("goal", 1000),
     timers: store.get("timers", {}),
+    comView: store.get("comView", "galeria"),
     demo: !CFG.workerUrl,
     pin: sess.get("pin") || store.get("pinRemember", null),
     loaded: false,
@@ -574,12 +579,59 @@
 
   // ================= Vista: Comisiones =================
   const FEES = { Wise: (u) => 0.41 + u * 0.0371, PayPal: (u) => 0.3 + u * 0.054, Robux: (u) => u * 0.3, Transferencia: () => 0, Otro: () => 0 };
+  const imgsOf = (p) => (Array.isArray(p["Imágenes"]) ? p["Imágenes"] : []).filter((u) => typeof u === "string" && u);
+  const methodOf = (p) => p["Método de pago"] || (p.Moneda === "Robux" ? "Robux" : "Wise");
+  const estadoTag = (s) => {
+    const c = s === "Listo" ? "ok" : s === "Cancelado" ? "bad" : s === "En espera de revisión" ? "warn" : s === "Posible comisión" ? "gray" : "blue";
+    const label = s === "Listo" ? "Pagado" : s === "En espera de revisión" ? "Esperando pago" : s;
+    return `<span class="tag ${c}">${esc(label || "")}</span>`;
+  };
+  function cover(p) {
+    const im = imgsOf(p);
+    const h = colorFor(p.client || "?");
+    return im.length
+      ? `<img src="${esc(im[0])}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentNode.classList.add('noimg');this.remove()">${im.length > 1 ? `<span class="count">${im.length}</span>` : ""}`
+      : `<div class="ph" style="background:radial-gradient(120% 120% at 20% 10%, hsl(${h} 50% 22%), #0d0d0f 70%)"><span style="color:hsl(${h} 90% 72%)">${esc((p.title || "?")[0].toUpperCase())}</span></div>`;
+  }
+  function gcard(p, size, extra = "") {
+    const di = PEND.includes(p.Estado) ? dueInfo(p["Fecha de entrega"]) : null;
+    return `<div class="gcard ${size}" data-id="${esc(p.id)}" data-open>
+      <div class="cover">${cover(p)}<button class="cam" data-act="img" title="Añadir imagen">${I("camera")}</button></div>
+      <div class="gbody">
+        <div class="gt">${esc(p.title)}</div>
+        <div class="gm">${esc(p.client)}${size !== "sm" && p.Moneda && p.Moneda !== S.cur && p.Precio != null ? " · " + raw(p.Precio, p.Moneda) : ""}</div>
+        <div class="gp"><b>${money(p.usd)}</b>${estadoTag(p.Estado)}</div>
+        ${di ? `<div class="gm ${di.late ? "bad" : di.soon ? "warn" : ""}">${esc(di.text)}</div>` : ""}
+        ${extra}
+      </div></div>`;
+  }
+
   VIEWS.comisiones = () => {
+    if (S.comView === "lista") return VIEWS.comisionesLista();
+    const act = pending().sort((a, b) => (a.Estado === "Posible comisión") - (b.Estado === "Posible comisión") || (a["Fecha de entrega"] || "9").localeCompare(b["Fecha de entrega"] || "9"));
     const aw = awaiting(), pd = paid().sort((a, b) => (b.paidOn || "").localeCompare(a.paidOn || "")), cn = ped().filter((p) => p.Estado === "Cancelado");
-    const method = (p) => p["Método de pago"] || (p.Moneda === "Robux" ? "Robux" : "Wise");
     return `
       <div class="h-date">&nbsp;</div>
-      <div class="h1">Comisiones <button class="btn" data-new="pedido">${I("plus")} Añadir</button></div>
+      <div class="h1">Comisiones <span style="display:flex;gap:8px;align-items:center">${viewSeg()}<button class="btn" data-new="pedido">${I("plus")} Añadir</button></span></div>
+      <div class="group-t">En curso <span class="dim">${act.length}</span></div>
+      ${act.length ? `<div class="ggrid lg">${act.map((p) => gcard(p, "lg")).join("")}</div>` : `<div class="list"><div class="empty">Nada en curso</div></div>`}
+      ${aw.length ? `<div class="group-t">Esperando pago <span class="dim">${aw.length}</span></div>
+      <div class="ggrid md">${aw.map((p) => { const m = methodOf(p), fee = (FEES[m] || FEES.Otro)(p.usd); return gcard(p, "md", `
+        <div class="gm" style="color:var(--accent-2)">${esc(m)}: neto ≈ ${money(p.usd - fee, { dec: 2 })}</div>
+        <div class="gacts"><select class="sel" data-act="method">${["Wise", "PayPal", "Robux", "Transferencia", "Otro"].map((o) => `<option ${o === m ? "selected" : ""}>${o}</option>`).join("")}</select>
+        <button class="btn sm" data-act="paid">${I("check")} Pagado</button></div>`); }).join("")}</div>` : ""}
+      <div class="group-t">Pagadas <span class="dim">${pd.length} · ${money(pd.reduce((a, p) => a + p.usd, 0))}</span></div>
+      ${pd.length ? `<div class="ggrid sm">${pd.map((p) => gcard(p, "sm")).join("")}</div>` : `<div class="list"><div class="empty">Aún no hay comisiones pagadas</div></div>`}
+      ${cn.length ? `<div class="group-t">Canceladas <span class="dim">${cn.length}</span></div><div class="ggrid sm off">${cn.map((p) => gcard(p, "sm")).join("")}</div>` : ""}`;
+  };
+  const viewSeg = () => `<div class="seg" id="comView"><button data-v="galeria" class="${S.comView !== "lista" ? "on" : ""}" title="Galería">${I("grid")}</button><button data-v="lista" class="${S.comView === "lista" ? "on" : ""}" title="Lista">${I("list")}</button></div>`;
+
+  VIEWS.comisionesLista = () => {
+    const aw = awaiting(), pd = paid().sort((a, b) => (b.paidOn || "").localeCompare(a.paidOn || "")), cn = ped().filter((p) => p.Estado === "Cancelado");
+    const method = methodOf;
+    return `
+      <div class="h-date">&nbsp;</div>
+      <div class="h1">Comisiones <span style="display:flex;gap:8px;align-items:center">${viewSeg()}<button class="btn" data-new="pedido">${I("plus")} Añadir</button></span></div>
       ${aw.length ? `<div class="group-t">Esperando pago <span class="dim">${aw.length} terminada${aw.length > 1 ? "s" : ""}</span></div>
       <div class="list">${aw.map((p) => { const m = method(p), fee = (FEES[m] || FEES.Otro)(p.usd); return `
         <div class="item" data-id="${esc(p.id)}">
@@ -869,6 +921,117 @@
     });
   }
 
+  // ================= Imágenes de los pedidos =================
+  // Reduce la imagen (máx. 1800 px, JPEG) para que suba rápido; los GIF se suben tal cual.
+  function shrinkImage(file) {
+    return new Promise((resolve) => {
+      if (file.type === "image/gif" || !/^image\//.test(file.type)) return resolve(file);
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 1800 / Math.max(img.width, img.height));
+        if (k === 1 && file.size < 2.5e6) { URL.revokeObjectURL(url); return resolve(file); }
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        const x = c.getContext("2d");
+        x.fillStyle = "#000"; x.fillRect(0, 0, c.width, c.height);
+        x.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob((b) => resolve(b ? new File([b], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }) : file), "image/jpeg", 0.86);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+  async function uploadImages(id, files) {
+    files = [...files].filter((f) => /^image\/(jpeg|png|webp|gif)$/.test(f.type));
+    if (!files.length) { toast("Elige una imagen JPG, PNG, WEBP o GIF", true); return; }
+    const row = S.data.pedidos.find((x) => x.id === id);
+    if (!row) return;
+    for (const f0 of files) {
+      const f = await shrinkImage(f0);
+      toast(`Subiendo ${f.name}…`);
+      if (S.demo) {
+        row["Imágenes"] = [...imgsOf(row), URL.createObjectURL(f)];
+        render(); refreshDetail(id); continue;
+      }
+      setSync("busy");
+      try {
+        const res = await fetch(CFG.workerUrl.replace(/\/$/, "") + `/api/pedidos/${id}/imagen`, {
+          method: "POST",
+          headers: { "Content-Type": f.type, "X-PIN": S.pin || "", "X-Filename": encodeURIComponent(f.name).slice(0, 80) },
+          body: f,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Error " + res.status);
+        if (data.pedido) Object.assign(row, data.pedido);
+        setSync("ok");
+        toast(data.aviso || "Imagen guardada en Notion", !!data.aviso);
+        render(); refreshDetail(id);
+      } catch (e) { setSync("err"); toast("No se pudo subir la imagen: " + e.message, true); }
+    }
+  }
+  function pickImages(id) {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/png,image/jpeg,image/webp,image/gif"; inp.multiple = true;
+    inp.onchange = () => uploadImages(id, inp.files);
+    inp.click();
+  }
+
+  let detailOpen = null;
+  function refreshDetail(id) { if (detailOpen && detailOpen.id === id) detailOpen.draw(); }
+  function detailModal(id) {
+    let idx = 0;
+    const m = modal(`<div id="det"></div>`, true);
+    const box = $("#det", m.el);
+    const draw = () => {
+      const p = ped().find((x) => x.id === id);
+      if (!p) { m.close(); return; }
+      const im = imgsOf(p);
+      idx = Math.min(idx, Math.max(0, im.length - 1));
+      const fee = (FEES[methodOf(p)] || FEES.Otro)(p.usd);
+      box.innerHTML = `
+        <h3><span>${esc(p.title)}</span><button class="ib" data-close>${I("x")}</button></h3>
+        <div class="muted" style="font-size:12.5px;margin-bottom:14px">${esc(p.client)} · ${estadoTag(p.Estado)}</div>
+        <div class="viewer" id="drop">
+          ${im.length ? `<img src="${esc(im[idx])}" alt="" referrerpolicy="no-referrer">
+            ${im.length > 1 ? `<button class="nav-l ib" data-nav="-1">${I("chevl")}</button><button class="nav-r ib" data-nav="1">${I("chevr")}</button>` : ""}`
+          : `<div class="dropmsg">${I("image")}<div>Arrastra aquí una imagen, pégala con Ctrl+V o pulsa “Añadir imagen”</div></div>`}
+        </div>
+        ${im.length > 1 ? `<div class="thumbs">${im.map((u, i) => `<img src="${esc(u)}" data-th="${i}" class="${i === idx ? "on" : ""}" alt="" referrerpolicy="no-referrer">`).join("")}</div>` : ""}
+        <div class="grid g4" style="margin-top:14px">
+          <div class="card stat"><div class="lb">Precio</div><div class="v" style="font-size:18px">${money(p.usd)}</div><div class="s">${p.Precio != null ? raw(p.Precio, p.Moneda) : ""}</div></div>
+          <div class="card stat"><div class="lb">Cobrado</div><div class="v" style="font-size:18px">${money(p.Estado === "Listo" ? p.usd : p.paidUsd)}</div><div class="s">${p.Estado === "Listo" ? esc(p["Método de pago"] || "") : ""}</div></div>
+          <div class="card stat"><div class="lb">Tiempo</div><div class="v" style="font-size:18px">${hm(secondsOf(p))}</div><div class="s">${secondsOf(p) && p.usd ? money(p.usd / (secondsOf(p) / 3600)) + "/h" : ""}</div></div>
+          <div class="card stat"><div class="lb">${p.Estado === "Listo" ? "Pagado" : "Entrega"}</div><div class="v" style="font-size:16px">${fmtDate(p.Estado === "Listo" ? p.paidOn : p["Fecha de entrega"]) || "—"}</div><div class="s">Pedido ${fmtDate(p["Fecha de pedido"])}</div></div>
+        </div>
+        ${p.Estado === "En espera de revisión" ? `<div class="muted" style="font-size:12px;margin-top:10px">${esc(methodOf(p))}: comisión ≈ ${money(fee, { dec: 2 })} · neto ≈ ${money(p.usd - fee, { dec: 2 })}</div>` : ""}
+        <div class="form"><div class="acts" style="justify-content:space-between">
+          <button type="button" class="btn ghost" data-d="del">${I("trash")} Borrar</button>
+          <span style="display:flex;gap:8px"><button type="button" class="btn ghost" data-d="img">${I("camera")} Añadir imagen</button><button type="button" class="btn" data-d="edit">${I("edit")} Editar</button></span>
+        </div></div>`;
+      $$("[data-nav]", box).forEach((b) => b.addEventListener("click", () => { idx = (idx + Number(b.dataset.nav) + im.length) % im.length; draw(); }));
+      $$("[data-th]", box).forEach((t) => t.addEventListener("click", () => { idx = Number(t.dataset.th); draw(); }));
+      $("[data-d=img]", box).addEventListener("click", () => pickImages(id));
+      $("[data-d=edit]", box).addEventListener("click", () => { m.close(); pedidoModal(S.data.pedidos.find((x) => x.id === id)); });
+      $("[data-d=del]", box).addEventListener("click", () => { if (confirm(`¿Mover "${p.title}" a la papelera de Notion?`)) { m.close(); remove("pedidos", id); } });
+      $("[data-close]", box).addEventListener("click", () => {});
+      const drop = $("#drop", box);
+      drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+      drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+      drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); uploadImages(id, e.dataTransfer.files); });
+    };
+    const onPaste = (e) => {
+      const files = [...(e.clipboardData || {}).items || []].filter((it) => it.kind === "file").map((it) => it.getAsFile()).filter(Boolean);
+      if (files.length) { e.preventDefault(); uploadImages(id, files); }
+    };
+    document.addEventListener("paste", onPaste);
+    const obs = new MutationObserver(() => { if (!document.body.contains(m.el)) { document.removeEventListener("paste", onPaste); detailOpen = null; obs.disconnect(); } });
+    obs.observe(document.body, { childList: true });
+    detailOpen = { id, draw };
+    draw();
+  }
+
   const CANALES = ["Fiverr", "Comisiones - Ghoustly", "Redes sociales", "Web ghoustly3d.com", "Discord", "Otro"];
 
   function clientModal(key) {
@@ -996,17 +1159,25 @@
   };
   BIND.comisiones = () => {
     bindCommon();
+    const cv = $("#comView");
+    if (cv) cv.addEventListener("click", (e) => { const b = e.target.closest("[data-v]"); if (b) { S.comView = b.dataset.v; store.set("comView", S.comView); lastTab = null; render(); } });
+    $$("#main [data-open]").forEach((c) => c.addEventListener("click", (e) => {
+      if (e.target.closest("[data-act],select,button,input")) return;
+      detailModal(c.dataset.id);
+    }));
     $$("#main [data-act]").forEach((b) => {
       const ev = b.tagName === "SELECT" ? "change" : "click";
       b.addEventListener(ev, (e) => {
+        e.stopPropagation();
         const id = rowId(e), p = ped().find((x) => x.id === id);
         if (!p) return;
         const a = b.dataset.act;
+        if (a === "img") pickImages(id);
         if (a === "edit") pedidoModal(S.data.pedidos.find((x) => x.id === id));
         if (a === "del") { if (confirm(`¿Mover "${p.title}" a la papelera de Notion?`)) remove("pedidos", id, b.closest(".item")); }
         if (a === "method") patch("pedidos", id, { "Método de pago": b.value });
         if (a === "paid") {
-          const sel = b.closest(".item").querySelector("select");
+          const sel = b.closest("[data-id]").querySelector("select");
           patch("pedidos", id, { Estado: "Listo", "Fecha de pago": todayISO(), Cobrado: p.Precio, "Método de pago": sel ? sel.value : p["Método de pago"] });
           confetti(b);
           toast("¡Pago registrado! 🎉");
