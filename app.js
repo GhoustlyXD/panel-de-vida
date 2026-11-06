@@ -139,16 +139,45 @@
 
   // ================= Monedas =================
   const SYM = { USD: "$", EUR: "€", RUB: "₽" };
-  async function loadRates() {
-    if (Date.now() - (S.rates.ts || 0) < 6 * 3600e3) return;
+  // Cambio oficial del día: rublo del Banco Central de Rusia, euro del BCE.
+  // Con el Worker queda guardado en Notion (base "Cambio"), igual que lo lee el Panel de Vida.
+  async function fetchRatesDirect() {
+    const [cbr, ecb] = await Promise.all([
+      fetch("https://www.cbr-xml-daily.ru/daily_json.js").then((r) => r.json()),
+      fetch("https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR").then((r) => r.json()),
+    ]);
+    const d = String(cbr.Date).slice(0, 10);
+    return { rubUsd: cbr.Valute.USD.Value / cbr.Valute.USD.Nominal, eurUsd: ecb.rates.EUR, dia: d,
+      fuente: `Banco Central de Rusia (${fmtDate(d)}) · BCE (${fmtDate(ecb.date)})`, actualizado: new Date().toISOString() };
+  }
+  let ratesBusy = false;
+  async function loadRates(force) {
+    if (ratesBusy) return;
+    ratesBusy = true;
+    const btn = $("#ratesBtn"); if (btn) btn.classList.add("spin");
     try {
-      const r = await fetch("https://open.er-api.com/v6/latest/USD").then((x) => x.json());
-      if (r && r.rates && r.rates.EUR && r.rates.RUB) {
-        S.rates = { EUR: r.rates.EUR, RUB: r.rates.RUB, ts: Date.now() };
+      const r = S.demo ? await fetchRatesDirect() : await api("GET", "tipo-cambio" + (force ? "?forzar=1" : ""));
+      if (r && r.rubUsd && r.eurUsd) {
+        S.rates = { EUR: r.eurUsd, RUB: r.rubUsd, ts: Date.now(), dia: r.dia, fuente: r.fuente, actualizado: r.actualizado };
         store.set("rates", S.rates);
         render();
+        if (force) toast("Cambio actualizado");
+        if (r.aviso) toast(r.aviso, true);
       }
-    } catch {}
+    } catch (e) { if (force) toast("No se pudo actualizar el cambio: " + e.message, true); }
+    finally { ratesBusy = false; const b = $("#ratesBtn"); if (b) b.classList.remove("spin"); }
+  }
+  function ago(iso) {
+    if (!iso) return "";
+    const m = Math.round((Date.now() - Date.parse(iso)) / 6e4);
+    return m < 1 ? "ahora mismo" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} d`;
+  }
+  function ratesLine() {
+    const r = S.rates;
+    return `<div class="rates"><span>${I("trend")}</span>
+      <span>1 $ = <b>${r.EUR.toLocaleString("es-ES", { maximumFractionDigits: 4 })} €</b> · 1 $ = <b>${r.RUB.toLocaleString("es-ES", { maximumFractionDigits: 2 })} ₽</b> · 1 € = <b>${(r.RUB / r.EUR).toLocaleString("es-ES", { maximumFractionDigits: 2 })} ₽</b></span>
+      <span class="dim">${r.fuente ? esc(r.fuente) + " · " : ""}${r.actualizado ? "actualizado " + ago(r.actualizado) : "cambio aproximado"}</span>
+      <button class="ib" id="ratesBtn" title="Actualizar el cambio ahora" style="width:24px;height:24px">${I("refresh")}</button></div>`;
   }
   const toUSD = (v, m) => {
     v = Number(v) || 0;
@@ -288,6 +317,7 @@
     if (!fresh) $$(".chart .line").forEach((p) => (p.style.animation = "none", p.style.strokeDashoffset = 0));
     if (!fresh) $$(".chart .area, .chart .growbar").forEach((p) => (p.style.animation = "none", p.style.opacity = 1));
     bindTips();
+    const rb = $("#ratesBtn"); if (rb) rb.addEventListener("click", () => loadRates(true));
     (BIND[S.tab] || (() => {}))();
   }
 
@@ -437,7 +467,8 @@
         <div class="card hov click stat" data-go="dinero"><span class="ic">${I("coins")}</span><div class="lb">Patrimonio</div><div class="v" data-count>${money(totalWealthUSD())}</div><div class="s">${S.data.cuentas.length} cuentas</div></div>
         <div class="card hov click stat" data-go="dinero"><span class="ic">${I("bag")}</span><div class="lb">Saldo FunPay</div><div class="v" data-count>${fp ? money(toUSD(fp.Saldo, "RUB")) : "—"}</div><div class="s">${fp ? raw(fp.Saldo, "RUB") + " · " + fmtDate(fp.Fecha) : "Sin lecturas"}</div></div>
         <div class="card hov click stat" data-go="vida"><span class="ic">${I("clock")}</span><div class="lb">Ahora toca</div><div class="v" style="font-size:18px">${rn.cur ? esc(rn.cur.Bloque) : "—"}</div><div class="s">${rn.cur ? esc(rn.cur.Hora) : "Rutina libre"}</div></div>
-      </div>`;
+      </div>
+      ${ratesLine()}`;
   };
 
   // ================= Vista: Resumen =================
@@ -658,7 +689,8 @@
             <div style="margin-top:12px">${fp.slice(-4).reverse().map((f) => `<div class="item" data-fp="${esc(f.id)}" style="padding:8px 2px"><div class="main"><div class="t" style="font-weight:500">${fmtDate(f.Fecha)} · ${esc(f.Nota || "")}</div></div><span class="amt">${raw(f.Saldo, "RUB")}</span><button class="ib del" data-act="delFp">${I("trash")}</button></div>`).join("")}</div>
           </div>
         </div>
-        <div class="muted" style="font-size:11.5px;margin-top:14px">Cambio: 1 $ = ${S.rates.EUR.toFixed(3)} € = ${S.rates.RUB.toFixed(2)} ₽ · 1 R$ = ${S.robux} $ <button class="ib" id="robuxRate" title="Cambiar valor del Robux" style="width:22px;height:22px">${I("edit")}</button></div>
+        ${ratesLine()}
+        <div class="muted" style="font-size:11.5px;margin-top:8px">Robux: 1 R$ = ${S.robux} $ (valor fijo tuyo) <button class="ib" id="robuxRate" title="Cambiar valor del Robux" style="width:22px;height:22px">${I("edit")}</button></div>
       </div>`;
   };
 
@@ -1032,6 +1064,7 @@
     shell(); lastTab = null; render(); loadRates();
     // Se actualiza solo cada 2 minutos cuando la pestaña está visible.
     setInterval(() => { if (document.visibilityState === "visible" && !$(".modal-bg") && !document.activeElement.matches("input,select")) loadAll().then(render).catch(() => {}); }, 120000);
+    setInterval(() => { if (document.visibilityState === "visible") loadRates(); }, 30 * 60000);
   }
 
   async function boot() {
