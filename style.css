@@ -288,3 +288,22 @@ table.tb { width: 100%; border-collapse: collapse; font-size: 13px; }
 .tl .b { font-weight: 600; margin-top: 2px; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* ---------- Tiempo, ganancia por hora y upfront ---------- */
+.rate { color: var(--ok); font-weight: 600; }
+button.timer { background: none; border: 1px dashed transparent; border-radius: 8px; padding: 3px 6px; cursor: pointer; transition: border-color .2s, color .2s; }
+button.timer:hover { border-color: var(--line); color: var(--fg); }
+.gtime { display: flex; align-items: center; gap: 6px; width: 100%; margin-top: 4px; padding: 6px 8px; border-radius: 8px; background: #0b0b0c; border: 1px solid var(--line); color: var(--muted); font-size: 12px; text-align: left; transition: border-color .2s, color .2s; }
+.gtime:hover { border-color: var(--accent); color: var(--fg); }
+.gtime svg { width: 13px; height: 13px; }
+.gtime .gedit { margin-left: auto; opacity: .5; display: flex; }
+.gtime:hover .gedit { opacity: 1; }
+.upf { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.upf-chk { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: #0b0b0c; transition: border-color .2s, color .2s; }
+.upf-chk:has(input:checked) { border-color: var(--ok); color: var(--ok); }
+.upf-chk input { accent-color: var(--ok); width: 14px; height: 14px; margin: 0; }
+.upf-amt { display: inline-flex; align-items: center; gap: 6px; animation: rise .3s var(--ease) both; }
+.upf-amt[hidden] { display: none; }
+.upf-amt .inp { width: 100px; padding: 5px 8px; font-size: 12.5px; }
+.upf-left b { color: var(--fg); }
+.lb svg { width: 12px; height: 12px; vertical-align: -2px; opacity: .6; }

@@ -124,6 +124,7 @@
     const before = row ? { ...row } : null;
     if (row) Object.assign(row, changes);
     render();
+    if (detailOpen && detailOpen.id === id) detailOpen.draw();
     try { await api("PATCH", `${db}/${id}`, changes); }
     catch (e) { if (row && before) Object.assign(row, before); render(); toast("No se pudo guardar: " + e.message, true); }
   }
@@ -244,6 +245,47 @@
   const awaiting = () => ped().filter((p) => p.Estado === "En espera de revisión");
   const paid = () => ped().filter((p) => p.Estado === "Listo");
   const secondsOf = (p) => (Number(p["Segundos trabajados"]) || 0) + (S.timers[p.id] ? (Date.now() - S.timers[p.id]) / 1000 : 0);
+  // Ganancia por hora = precio del pedido / tiempo invertido (en la moneda elegida arriba).
+  const rateOf = (p) => { const s = secondsOf(p), u = p.usd != null ? p.usd : toUSD(p.Precio, p.Moneda); return s >= 60 && u ? u / (s / 3600) : null; };
+  const rateTxt = (p) => { const r = rateOf(p); return r == null ? "" : money(r, { dec: 0 }) + "/h"; };
+  // Lo que falta por cobrar = precio − upfront (Cobrado).
+  const remainingUsd = (p) => Math.max(0, (p.usd || 0) - (p.paidUsd || 0));
+  const upfrontOn = (p) => p["Adelanto pagado"] === true || p["Adelanto pagado"] === "__YES__" || (Number(p.Cobrado) || 0) > 0;
+  const timeLine = (p) => { const s = secondsOf(p); return s >= 60 ? `${I("clock")} ${hm(s)}${rateOf(p) != null ? ` · <b class="rate">${rateTxt(p)}</b>` : ""}` : `${I("clock")} <span class="dim">sin tiempo</span>`; };
+
+  // Editor de tiempo manual (por si se olvidó el cronómetro).
+  function timeModal(id) {
+    const row = S.data.pedidos.find((x) => x.id === id);
+    if (!row) return;
+    // Si el cronómetro estaba en marcha, se suma lo que lleva antes de editar.
+    if (S.timers[id]) {
+      row["Segundos trabajados"] = Math.round((Number(row["Segundos trabajados"]) || 0) + (Date.now() - S.timers[id]) / 1000);
+      delete S.timers[id]; store.set("timers", S.timers);
+    }
+    const p0 = ped().find((x) => x.id === id);
+    let secs = Math.round(Number(row["Segundos trabajados"]) || 0);
+    const m = modal(`
+      <h3>Tiempo trabajado <button class="ib" data-close>${I("x")}</button></h3>
+      <div class="muted" style="font-size:12.5px">${esc(p0.title)} · ${esc(p0.client)} · ${money(p0.usd)}</div>
+      <form class="form">
+        <div class="two"><label>Horas<input class="inp" name="h" type="number" min="0" step="1" value="${Math.floor(secs / 3600)}"></label><label>Minutos<input class="inp" name="m" type="number" min="0" max="59" step="1" value="${Math.floor(secs / 60) % 60}"></label></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">${[["+15 min", 900], ["+30 min", 1800], ["+1 h", 3600], ["+2 h", 7200], ["−15 min", -900]].map(([l, v]) => `<button type="button" class="btn ghost sm" data-add="${v}">${l}</button>`).join("")}</div>
+        <div class="card stat" style="margin-top:4px"><div class="lb">Ganancia por hora con este tiempo</div><div class="v" id="ratePrev">—</div><div class="s" id="ratePrevSub"></div></div>
+        <div class="acts"><button type="button" class="btn ghost" data-close>Cancelar</button><button class="btn">${I("check")} Guardar tiempo</button></div>
+      </form>`);
+    const f = $("form", m.el);
+    const read = () => Math.max(0, (Number(f.h.value) || 0) * 3600 + (Number(f.m.value) || 0) * 60);
+    const write = (s) => { s = Math.max(0, s); f.h.value = Math.floor(s / 3600); f.m.value = Math.floor(s / 60) % 60; prev(); };
+    const prev = () => {
+      const s = read();
+      $("#ratePrev", m.el).textContent = s >= 60 && p0.usd ? money(p0.usd / (s / 3600), { dec: 0 }) + " / h" : "—";
+      $("#ratePrevSub", m.el).textContent = s ? `${hm(s)} para ${money(p0.usd)}` : "Pon cuánto tardaste";
+    };
+    f.addEventListener("input", prev);
+    $$("[data-add]", m.el).forEach((b) => b.addEventListener("click", () => write(read() + Number(b.dataset.add))));
+    f.addEventListener("submit", (e) => { e.preventDefault(); m.close(); patch("pedidos", id, { "Segundos trabajados": read() }); toast("Tiempo guardado"); });
+    prev();
+  }
 
   const colorFor = (s) => { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
   const avatar = (name, big) => { const h = colorFor(name); return `<div class="av" style="background:hsl(${h} 60% 18%);color:hsl(${h} 90% 72%)${big ? ";width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-weight:700;flex:none" : ""}">${esc((name[0] || "?").toUpperCase())}</div>`; };
@@ -602,6 +644,9 @@
         <div class="gm">${esc(p.client)}${size !== "sm" && p.Moneda && p.Moneda !== S.cur && p.Precio != null ? " · " + raw(p.Precio, p.Moneda) : ""}</div>
         <div class="gp"><b>${money(p.usd)}</b>${estadoTag(p.Estado)}</div>
         ${di ? `<div class="gm ${di.late ? "bad" : di.soon ? "warn" : ""}">${esc(di.text)}</div>` : ""}
+        ${size === "sm"
+          ? (rateOf(p) != null ? `<div class="gm"><b class="rate">${rateTxt(p)}</b> · ${hm(secondsOf(p))}</div>` : "")
+          : `<button class="gtime" data-act="time" title="Editar el tiempo a mano">${timeLine(p)} <span class="gedit">${I("edit")}</span></button>`}
         ${extra}
       </div></div>`;
   }
@@ -610,14 +655,24 @@
     if (S.comView === "lista") return VIEWS.comisionesLista();
     const act = pending().sort((a, b) => (a.Estado === "Posible comisión") - (b.Estado === "Posible comisión") || (a["Fecha de entrega"] || "9").localeCompare(b["Fecha de entrega"] || "9"));
     const aw = awaiting(), pd = paid().sort((a, b) => (b.paidOn || "").localeCompare(a.paidOn || "")), cn = ped().filter((p) => p.Estado === "Cancelado");
+    // Media de ganancia por hora: suma de precios / suma de horas, solo pedidos con tiempo registrado.
+    const avgRate = (list) => { const t = list.filter((p) => secondsOf(p) >= 60 && p.usd); const h = t.reduce((a, p) => a + secondsOf(p) / 3600, 0); return h ? { r: t.reduce((a, p) => a + p.usd, 0) / h, n: t.length, h } : null; };
+    const rAll = avgRate([...pd, ...aw]), rAct = avgRate([...act, ...aw]);
+    const toCollect = [...act, ...aw].reduce((a, p) => a + remainingUsd(p), 0);
     return `
       <div class="h-date">&nbsp;</div>
       <div class="h1">Comisiones <span style="display:flex;gap:8px;align-items:center">${viewSeg()}<button class="btn" data-new="pedido">${I("plus")} Añadir</button></span></div>
+      <div class="grid g3 stagger" style="margin-bottom:6px">
+        ${stat("clock", "Ganancia media por hora", rAll ? money(rAll.r, { dec: 0 }) + "/h" : "—", rAll ? `${rAll.n} pedidos terminados · ${hm(rAll.h * 3600)}` : "Registra el tiempo de tus pedidos")}
+        ${stat("trend", "Ritmo en lo abierto", rAct ? money(rAct.r, { dec: 0 }) + "/h" : "—", rAct ? `${rAct.n} pedidos con tiempo` : "Sin tiempo registrado aún")}
+        ${stat("wallet", "Falta por cobrar", money(toCollect), "en curso + esperando pago, sin upfront")}
+      </div>
       <div class="group-t">En curso <span class="dim">${act.length}</span></div>
       ${act.length ? `<div class="ggrid lg">${act.map((p) => gcard(p, "lg")).join("")}</div>` : `<div class="list"><div class="empty">Nada en curso</div></div>`}
       ${aw.length ? `<div class="group-t">Esperando pago <span class="dim">${aw.length}</span></div>
-      <div class="ggrid md">${aw.map((p) => { const m = methodOf(p), fee = (FEES[m] || FEES.Otro)(p.usd); return gcard(p, "md", `
-        <div class="gm" style="color:var(--accent-2)">${esc(m)}: neto ≈ ${money(p.usd - fee, { dec: 2 })}</div>
+      <div class="ggrid md">${aw.map((p) => { const m = methodOf(p), left = remainingUsd(p), fee = (FEES[m] || FEES.Otro)(left); return gcard(p, "md", `
+        <div class="gm">Falta por cobrar: <b style="color:var(--fg)">${money(left)}</b>${p.paidUsd ? ` <span class="dim">(upfront ${money(p.paidUsd)})</span>` : ""}</div>
+        <div class="gm" style="color:var(--accent-2)">${esc(m)}: neto ≈ ${money(left - fee, { dec: 2 })}</div>
         <div class="gacts"><select class="sel" data-act="method">${["Wise", "PayPal", "Robux", "Transferencia", "Otro"].map((o) => `<option ${o === m ? "selected" : ""}>${o}</option>`).join("")}</select>
         <button class="btn sm" data-act="paid">${I("check")} Pagado</button></div>`); }).join("")}</div>` : ""}
       <div class="group-t">Pagadas <span class="dim">${pd.length} · ${money(pd.reduce((a, p) => a + p.usd, 0))}</span></div>
@@ -678,9 +733,14 @@
         <div class="item" data-id="${esc(p.id)}">
           ${avatar(p.client)}
           <div class="main"><div class="t">${esc(p.title)} ${p.Estado === "Posible comisión" ? `<span class="tag gray">Posible</span>` : p.Estado === "En curso" ? `<span class="tag blue">En curso</span>` : ""}</div>
-            <div class="m">${esc(p.client)} · ${p.Precio != null ? raw(p.Precio, p.Moneda) : "sin precio"}${p.Moneda && p.Moneda !== S.cur ? ` (${money(p.usd)})` : ""}${p.paidUsd ? ` · cobrado ${money(p.paidUsd)}` : ""}${di ? ` · <span class="${di.late ? "bad" : di.soon ? "warn" : ""}">${esc(di.text)}</span>` : ""}</div></div>
+            <div class="m">${esc(p.client)} · ${p.Precio != null ? raw(p.Precio, p.Moneda) : "sin precio"}${p.Moneda && p.Moneda !== S.cur ? ` (${money(p.usd)})` : ""}${di ? ` · <span class="${di.late ? "bad" : di.soon ? "warn" : ""}">${esc(di.text)}</span>` : ""}${rateOf(p) != null ? ` · <b class="rate">${rateTxt(p)}</b>` : ""}</div>
+            <div class="upf">
+              <label class="upf-chk"><input type="checkbox" data-up ${upfrontOn(p) ? "checked" : ""}> Upfront</label>
+              <span class="upf-amt" ${upfrontOn(p) ? "" : "hidden"}><input class="inp" type="number" min="0" step="0.01" data-upamt value="${esc(p.Cobrado ?? "")}" placeholder="0"> ${esc(p.Moneda === "Robux" ? "R$" : SYM[p.Moneda] || p.Moneda || "$")}</span>
+              ${p.Precio != null ? `<span class="upf-left">Falta por cobrar: <b>${raw(Math.max(0, (Number(p.Precio) || 0) - (Number(p.Cobrado) || 0)), p.Moneda)}</b>${p.Moneda && p.Moneda !== S.cur ? ` <span class="dim">(${money(remainingUsd(p))})</span>` : ""}</span>` : ""}
+            </div></div>
           <div class="acts">
-            <span class="timer ${run ? "on" : ""}" data-timer="${esc(p.id)}">${hms(secondsOf(p))}</span>
+            <button class="timer ${run ? "on" : ""}" data-act="time" data-timer="${esc(p.id)}" title="Editar el tiempo a mano">${hms(secondsOf(p))}</button>
             <button class="ib play ${run ? "running" : ""}" data-act="timer" title="${run ? "Pausar" : "Empezar"}">${I(run ? "pause" : "play")}</button>
             <button class="ib" data-act="treset" title="Reiniciar cronómetro">${I("reset")}</button>
             <button class="ib" data-act="edit" title="Editar">${I("edit")}</button>
@@ -843,7 +903,7 @@
       <form class="form">
         <div class="two"><label>Cliente <span class="dim" id="cliHint"></span><input class="inp" name="client" list="clientsListM" value="${esc(nm.client)}" placeholder="Elige o escribe uno nuevo" required autocomplete="off"><datalist id="clientsListM">${clientOptions()}</datalist></label><label>Encargo<input class="inp" name="title" value="${esc(p.Encargo || nm.title)}"></label></div>
         <div class="two"><label>Precio<input class="inp" name="Precio" type="number" step="0.01" value="${esc(p.Precio ?? "")}"></label><label>Moneda<select class="sel" name="Moneda">${opt(["USD", "EUR", "RUB", "Robux"], p.Moneda)}</select></label></div>
-        <div class="two"><label>Estado<select class="sel" name="Estado">${opt(["Sin empezar", "En curso", "Posible comisión", "En espera de revisión", "Listo", "Cancelado"], p.Estado)}</select></label><label>Cobrado<input class="inp" name="Cobrado" type="number" step="0.01" value="${esc(p.Cobrado ?? "")}"></label></div>
+        <div class="two"><label>Estado<select class="sel" name="Estado">${opt(["Sin empezar", "En curso", "Posible comisión", "En espera de revisión", "Listo", "Cancelado"], p.Estado)}</select></label><label>Upfront / cobrado<input class="inp" name="Cobrado" type="number" step="0.01" min="0" value="${esc(p.Cobrado ?? "")}"></label></div>
         <div class="two"><label>Fecha de pedido<input class="inp" name="Fecha de pedido" type="date" value="${esc(p["Fecha de pedido"] || "")}"></label><label>Fecha de entrega<input class="inp" name="Fecha de entrega" type="date" value="${esc(p["Fecha de entrega"] || "")}"></label></div>
         <div class="two"><label>Método de pago<select class="sel" name="Método de pago"><option></option>${opt(["Wise", "PayPal", "Robux", "Transferencia", "Otro"], p["Método de pago"])}</select></label><label>Fecha de pago<input class="inp" name="Fecha de pago" type="date" value="${esc(p["Fecha de pago"] || "")}"></label></div>
         <label>Canal<select class="sel" name="Canal"><option></option>${opt(["Fiverr", "Comisiones - Ghoustly", "Redes sociales", "Web ghoustly3d.com", "Otro"], p.Canal)}</select></label>
@@ -865,6 +925,8 @@
         Precio: fd.Precio === "" ? null : Number(fd.Precio),
         Moneda: fd.Moneda, Estado: fd.Estado,
         Cobrado: fd.Cobrado === "" ? null : Number(fd.Cobrado),
+        // En pedidos ya pagados no se toca la casilla, para no perder el historial de upfronts.
+        ...(fd.Estado !== "Listo" && fd.Estado !== "Cancelado" ? { "Adelanto pagado": Number(fd.Cobrado) > 0 } : {}),
         "Fecha de pedido": fd["Fecha de pedido"] || null, "Fecha de entrega": fd["Fecha de entrega"] || null,
         "Método de pago": fd["Método de pago"] || null, "Fecha de pago": fd["Fecha de pago"] || null, Canal: fd.Canal || null,
       };
@@ -989,7 +1051,8 @@
       if (!p) { m.close(); return; }
       const im = imgsOf(p);
       idx = Math.min(idx, Math.max(0, im.length - 1));
-      const fee = (FEES[methodOf(p)] || FEES.Otro)(p.usd);
+      const left = remainingUsd(p);
+      const fee = (FEES[methodOf(p)] || FEES.Otro)(left);
       box.innerHTML = `
         <h3><span>${esc(p.title)}</span><button class="ib" data-close>${I("x")}</button></h3>
         <div class="muted" style="font-size:12.5px;margin-bottom:14px">${esc(p.client)} · ${estadoTag(p.Estado)}</div>
@@ -1001,11 +1064,17 @@
         ${im.length > 1 ? `<div class="thumbs">${im.map((u, i) => `<img src="${esc(u)}" data-th="${i}" class="${i === idx ? "on" : ""}" alt="" referrerpolicy="no-referrer">`).join("")}</div>` : ""}
         <div class="grid g4" style="margin-top:14px">
           <div class="card stat"><div class="lb">Precio</div><div class="v" style="font-size:18px">${money(p.usd)}</div><div class="s">${p.Precio != null ? raw(p.Precio, p.Moneda) : ""}</div></div>
-          <div class="card stat"><div class="lb">Cobrado</div><div class="v" style="font-size:18px">${money(p.Estado === "Listo" ? p.usd : p.paidUsd)}</div><div class="s">${p.Estado === "Listo" ? esc(p["Método de pago"] || "") : ""}</div></div>
-          <div class="card stat"><div class="lb">Tiempo</div><div class="v" style="font-size:18px">${hm(secondsOf(p))}</div><div class="s">${secondsOf(p) && p.usd ? money(p.usd / (secondsOf(p) / 3600)) + "/h" : ""}</div></div>
+          ${p.Estado === "Listo"
+            ? `<div class="card stat"><div class="lb">Cobrado</div><div class="v" style="font-size:18px">${money(p.usd)}</div><div class="s">${esc(p["Método de pago"] || "")}</div></div>`
+            : `<div class="card stat"><div class="lb">Falta por cobrar</div><div class="v" style="font-size:18px">${money(left)}</div><div class="s">${p.paidUsd ? "upfront " + money(p.paidUsd) : "sin upfront"}</div></div>`}
+          <button class="card stat hov click" data-d="time" title="Editar el tiempo a mano" style="text-align:left;font:inherit;color:inherit"><div class="lb">Tiempo ${I("edit")}</div><div class="v" style="font-size:18px">${hm(secondsOf(p))}</div><div class="s">${rateOf(p) != null ? `<b class="rate">${rateTxt(p)}</b>` : "Pulsa para añadirlo"}</div></button>
           <div class="card stat"><div class="lb">${p.Estado === "Listo" ? "Pagado" : "Entrega"}</div><div class="v" style="font-size:16px">${fmtDate(p.Estado === "Listo" ? p.paidOn : p["Fecha de entrega"]) || "—"}</div><div class="s">Pedido ${fmtDate(p["Fecha de pedido"])}</div></div>
         </div>
-        ${p.Estado === "En espera de revisión" ? `<div class="muted" style="font-size:12px;margin-top:10px">${esc(methodOf(p))}: comisión ≈ ${money(fee, { dec: 2 })} · neto ≈ ${money(p.usd - fee, { dec: 2 })}</div>` : ""}
+        ${p.Estado === "En espera de revisión" ? `<div class="muted" style="font-size:12px;margin-top:10px">${esc(methodOf(p))}: comisión ≈ ${money(fee, { dec: 2 })} · neto ≈ ${money(left - fee, { dec: 2 })} de lo que falta por cobrar</div>` : ""}
+        ${p.Estado !== "Listo" && p.Estado !== "Cancelado" ? `<div class="upf" style="margin-top:12px">
+          <label class="upf-chk"><input type="checkbox" data-up ${upfrontOn(p) ? "checked" : ""}> Upfront</label>
+          <span class="upf-amt" ${upfrontOn(p) ? "" : "hidden"}><input class="inp" type="number" min="0" step="0.01" data-upamt value="${esc(p.Cobrado ?? "")}" placeholder="0"> ${esc(p.Moneda === "Robux" ? "R$" : SYM[p.Moneda] || p.Moneda || "$")}</span>
+        </div>` : ""}
         <div class="form"><div class="acts" style="justify-content:space-between">
           <button type="button" class="btn ghost" data-d="del">${I("trash")} Borrar</button>
           <span style="display:flex;gap:8px"><button type="button" class="btn ghost" data-d="img">${I("camera")} Añadir imagen</button><button type="button" class="btn" data-d="edit">${I("edit")} Editar</button></span>
@@ -1013,6 +1082,8 @@
       $$("[data-nav]", box).forEach((b) => b.addEventListener("click", () => { idx = (idx + Number(b.dataset.nav) + im.length) % im.length; draw(); }));
       $$("[data-th]", box).forEach((t) => t.addEventListener("click", () => { idx = Number(t.dataset.th); draw(); }));
       $("[data-d=img]", box).addEventListener("click", () => pickImages(id));
+      $("[data-d=time]", box).addEventListener("click", () => timeModal(id));
+      bindUpfront(box);
       $("[data-d=edit]", box).addEventListener("click", () => { m.close(); pedidoModal(S.data.pedidos.find((x) => x.id === id)); });
       $("[data-d=del]", box).addEventListener("click", () => { if (confirm(`¿Mover "${p.title}" a la papelera de Notion?`)) { m.close(); remove("pedidos", id); } });
       $("[data-close]", box).addEventListener("click", () => {});
@@ -1173,6 +1244,7 @@
         if (!p) return;
         const a = b.dataset.act;
         if (a === "img") pickImages(id);
+        if (a === "time") timeModal(id);
         if (a === "edit") pedidoModal(S.data.pedidos.find((x) => x.id === id));
         if (a === "del") { if (confirm(`¿Mover "${p.title}" a la papelera de Notion?`)) remove("pedidos", id, b.closest(".item")); }
         if (a === "method") patch("pedidos", id, { "Método de pago": b.value });
@@ -1216,6 +1288,7 @@
         }
       }
       if (a === "treset") { if (confirm("¿Poner el cronómetro a cero?")) { delete S.timers[id]; store.set("timers", S.timers); patch("pedidos", id, { "Segundos trabajados": 0 }); } }
+      if (a === "time") timeModal(id);
       if (a === "edit") pedidoModal(p);
       if (a === "del") { if (confirm("¿Mover este pedido a la papelera de Notion?")) remove("pedidos", id, b.closest(".item")); }
       if (a === "finish") {
@@ -1226,7 +1299,30 @@
         setTimeout(() => { patch("pedidos", id, ch); toast("Movido a Comisiones → esperando pago"); }, 380);
       }
     }));
+    bindUpfront();
   };
+
+  // Casilla de upfront + importe: se guarda en "Adelanto pagado" y "Cobrado" del pedido en Notion.
+  function bindUpfront(root = document) {
+    $$("[data-up]", root).forEach((chk) => chk.addEventListener("change", (e) => {
+      const id = rowId(e);
+      const zone = chk.closest(".upf"), amt = $(".upf-amt", zone);
+      // Al marcarla solo aparece el campo; se guarda cuando escribes el importe.
+      if (chk.checked) { amt.hidden = false; $("input", amt).focus(); }
+      else { amt.hidden = true; patch("pedidos", id, { "Adelanto pagado": false, Cobrado: 0 }); }
+    }));
+    $$("[data-upamt]", root).forEach((inp) => {
+      const save = (e) => {
+        const id = rowId(e), row = S.data.pedidos.find((x) => x.id === id);
+        if (!row) return;
+        const v = inp.value === "" ? 0 : Math.max(0, Number(inp.value));
+        if (row.Precio != null && v > Number(row.Precio)) { toast("El upfront no puede ser mayor que el precio", true); inp.value = row.Cobrado ?? ""; return; }
+        if (v !== (Number(row.Cobrado) || 0)) { patch("pedidos", id, { "Adelanto pagado": v > 0, Cobrado: v }); toast(v ? "Upfront guardado" : "Upfront quitado"); }
+      };
+      inp.addEventListener("change", save);
+      inp.addEventListener("keydown", (k) => { if (k.key === "Enter") inp.blur(); });
+    });
+  }
   BIND.clientes = () => {
     bindCommon();
     const q = $("#clientQ");
