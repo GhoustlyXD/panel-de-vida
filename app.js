@@ -841,6 +841,15 @@
         </div>
         ${ratesLine()}
         <div class="muted" style="font-size:11.5px;margin-top:8px">Robux: 1 R$ = ${S.robux} $ (valor fijo tuyo) <button class="ib" id="robuxRate" title="Cambiar valor del Robux" style="width:22px;height:22px">${I("edit")}</button></div>
+        <div class="section-t">${I("repeat")} Conversor</div>
+        <div class="card conv">
+          <div class="conv-in">
+            <input class="inp" id="convAmt" type="number" inputmode="decimal" min="0" step="any" placeholder="Cantidad" value="${esc(store.get("convAmt", "100"))}">
+            <div class="seg" id="convCur">${["EUR", "USD", "RUB"].map((c) => `<button type="button" data-c="${c}" class="${store.get("convCur", "EUR") === c ? "on" : ""}">${SYM[c]} ${c}</button>`).join("")}</div>
+          </div>
+          <div class="conv-out" id="convOut"></div>
+          <div class="muted" style="font-size:11.5px;margin-top:10px">Al cambio oficial del día${S.rates.fuente ? ": " + esc(S.rates.fuente) : ""}. Pulsa una cifra para copiarla.</div>
+        </div>
       </div>`;
   };
 
@@ -1351,6 +1360,37 @@
       e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target));
       create("funpay", { Saldo: Number(fd.saldo), Retirado: Number(fd.ret) || 0, Fecha: fd.fecha || todayISO(), Nota: fd.nota || "lectura" });
     });
+    // Conversor: se recalcula al escribir, sin volver a pintar la página.
+    const amt = $("#convAmt"), out = $("#convOut");
+    let from = store.get("convCur", "EUR");
+    const perUsd = { USD: 1, EUR: S.rates.EUR, RUB: S.rates.RUB };
+    const fmt = (v, c) => {
+      const n = v.toLocaleString("es-ES", { minimumFractionDigits: c === "RUB" ? 0 : 2, maximumFractionDigits: c === "RUB" ? 0 : 2 });
+      return c === "USD" ? "$" + n : n + " " + SYM[c];
+    };
+    const calc = () => {
+      const v = Number(String(amt.value).replace(",", ".")) || 0;
+      store.set("convAmt", amt.value); store.set("convCur", from);
+      const usd = v / perUsd[from];
+      out.innerHTML = ["EUR", "USD", "RUB"].map((c) => {
+        const r = usd * perUsd[c];
+        return `<button type="button" class="conv-res ${c === from ? "src" : ""}" data-copy="${r.toFixed(c === "RUB" ? 0 : 2)}" title="Copiar">
+          <span class="lb">${c === "EUR" ? "Euros" : c === "USD" ? "Dólares" : "Rublos"}</span><span class="v">${fmt(r, c)}</span>
+          <span class="s">${c === from ? "cantidad original" : `1 ${SYM[from]} = ${(perUsd[c] / perUsd[from]).toLocaleString("es-ES", { maximumFractionDigits: 4 })} ${SYM[c]}`}</span></button>`;
+      }).join("");
+      $$(".conv-res", out).forEach((b) => b.addEventListener("click", () => {
+        try { navigator.clipboard.writeText(b.dataset.copy); toast("Copiado: " + b.dataset.copy); } catch { toast(b.dataset.copy); }
+      }));
+    };
+    amt.addEventListener("input", calc);
+    $("#convCur").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-c]");
+      if (!b) return;
+      from = b.dataset.c;
+      $$("#convCur button").forEach((x) => x.classList.toggle("on", x === b));
+      calc();
+    });
+    calc();
     $("#robuxRate").addEventListener("click", () => {
       const v = prompt("¿Cuántos dólares vale 1 Robux para ti?", S.robux);
       if (v && isFinite(+v.replace(",", "."))) { S.robux = +v.replace(",", "."); store.set("robuxRate", S.robux); render(); }
