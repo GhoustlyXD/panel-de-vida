@@ -850,6 +850,10 @@
           <div class="conv-out" id="convOut"></div>
           <div class="muted" style="font-size:11.5px;margin-top:10px">Al cambio oficial del día${S.rates.fuente ? ": " + esc(S.rates.fuente) : ""}. Pulsa una cifra para copiarla.</div>
         </div>
+        <a class="card hov npd-link" href="npd.html" style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;text-decoration:none;color:inherit">
+          <span><b style="font-weight:600">Declarar como самозанятый (НПД)</b><br><span class="muted" style="font-size:12px">EUR / USD → ₽ al curso del ЦБ del día de cobro, impuesto y registro de чеки</span></span>
+          <span class="btn green sm">Abrir →</span>
+        </a>
       </div>`;
   };
 

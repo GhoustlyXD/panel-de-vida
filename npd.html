@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Declarar НПД</title>
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='9' fill='%232fd36b'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=9">
+  <style>
+    .brand .dot { background: var(--ok); box-shadow: 0 0 14px var(--ok); }
+    .top { grid-template-columns: 1fr auto; }
+    .npd-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 6px 0 22px; }
+    .npd-hero .h1 { margin: 0; }
+    .go { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 999px; background: var(--ok); color: #000; font-weight: 700; text-decoration: none; transition: transform .2s var(--ease), box-shadow .2s; }
+    .go:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(47,211,107,.35); }
+    .back { color: var(--muted); text-decoration: none; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+    .back:hover { color: var(--fg); }
+    .rowf { display: grid; grid-template-columns: 1.4fr auto; gap: 10px; align-items: end; }
+    .rowf2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    @media (max-width: 600px) { .rowf, .rowf2 { grid-template-columns: 1fr; } }
+    .fl { display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+    .fl .inp { width: 100%; }
+    .big .inp { font-size: 22px; font-weight: 600; padding: 10px 14px; font-variant-numeric: tabular-nums; }
+    .seg.lg button { padding: 8px 13px; font-size: 13px; }
+    .res { margin-top: 16px; display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; }
+    @media (max-width: 700px) { .res { grid-template-columns: 1fr; } }
+    .res .box { padding: 14px; border-radius: 12px; background: #0b0b0c; border: 1px solid var(--line); display: grid; gap: 4px; animation: rise .35s var(--ease) both; }
+    .res .box.main { border-color: rgba(47,211,107,.45); background: rgba(47,211,107,.06); }
+    .res .lb { color: var(--muted); font-size: 12px; }
+    .res .v { font-size: 22px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .res .main .v { font-size: 30px; color: var(--ok); }
+    .res .s { color: var(--dim); font-size: 11.5px; }
+    .copy { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 12px; color: var(--fg); background: var(--panel-3); padding: 5px 10px; border-radius: 999px; width: max-content; }
+    .copy:hover { background: #2c2c31; }
+    .curso { margin-top: 12px; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+    .curso b { color: var(--fg); font-weight: 600; }
+    .curso .aviso { color: var(--warn); }
+    .rates-now { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .rates-now .box { padding: 12px 14px; border-radius: 12px; background: #0b0b0c; border: 1px solid var(--line); }
+    .rates-now .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .rates-now .s { color: var(--dim); font-size: 11.5px; margin-top: 2px; }
+    .rates-now .up { color: var(--bad); } .rates-now .down { color: var(--ok); }
+    table.reg { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .reg th { text-align: left; color: var(--dim); font-weight: 500; font-size: 11.5px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+    .reg td { padding: 9px 8px; border-bottom: 1px solid #1b1b1e; vertical-align: middle; }
+    .reg td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .reg tr.done td { color: var(--dim); }
+    .reg .mth td { background: #0b0b0c; font-weight: 600; color: var(--fg); }
+    .tbl-wrap { overflow-x: auto; }
+    .chk { width: 18px; height: 18px; accent-color: var(--ok); cursor: pointer; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; background: var(--panel-3); color: var(--muted); }
+    .pill.p6 { background: rgba(245,184,61,.14); color: var(--warn); }
+    .lim { height: 8px; border-radius: 999px; background: #0b0b0c; border: 1px solid var(--line); overflow: hidden; margin: 8px 0 4px; }
+    .lim > i { display: block; height: 100%; background: var(--ok); border-radius: 999px; transition: width .6s var(--ease); }
+    .tips { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .tips li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; line-height: 1.5; color: #d6d6da; font-size: 13.5px; }
+    .tips li .k { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--panel-3); color: var(--ok); font-weight: 700; font-size: 12px; }
+    .tips b { color: var(--fg); }
+    .note { font-size: 11.5px; color: var(--dim); margin-top: 14px; line-height: 1.5; }
+    .sumrow { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--muted); }
+    .sumrow b { color: var(--fg); font-variant-numeric: tabular-nums; }
+    .ib.del:hover { color: var(--bad); }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="dot"></span> Declarar · НПД</div>
+    <div class="tools"><a class="back" href="./">← Volver al panel</a></div>
+  </header>
+  <main>
+    <div class="view">
+      <div class="npd-hero">
+        <div>
+          <div class="h-date" id="hoy">&nbsp;</div>
+          <div class="h1">Cuánto declarar</div>
+        </div>
+        <a class="go" href="https://lknpd.nalog.ru/sales" target="_blank" rel="noopener">Abrir Мой налог · ventas ↗</a>
+      </div>
+
+      <div class="grid stagger" style="gap:14px">
+        <div class="card">
+          <div class="card-t"><span>Calcular la suma en rublos</span><span class="sub">Curso oficial del ЦБ РФ</span></div>
+          <div class="rowf big">
+            <label class="fl">Importe que pagó el cliente
+              <input class="inp" id="amt" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
+            </label>
+            <div class="seg lg" id="cur"><button type="button" data-c="EUR">€ EUR</button><button type="button" data-c="USD">$ USD</button></div>
+          </div>
+          <div class="rowf2">
+            <label class="fl">Fecha en que recibiste el dinero
+              <input class="inp" id="fecha" type="date">
+            </label>
+            <label class="fl">Cliente
+              <div class="seg lg" id="tipo"><button type="button" data-t="4">Particular · 4%</button><button type="button" data-t="6">Empresa / ИП · 6%</button></div>
+            </label>
+          </div>
+          <div class="rowf2">
+            <label class="fl">Concepto (nombre del servicio en el чек)
+              <input class="inp" id="concepto" placeholder="Услуги по 3D-моделированию">
+            </label>
+            <label class="fl">Cliente / nota (solo para ti)
+              <input class="inp" id="nota" placeholder="p. ej. Nova">
+            </label>
+          </div>
+          <div class="res" id="res"></div>
+          <div class="curso" id="curso">Cargando el curso del ЦБ…</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+            <button class="btn green" id="add">＋ Añadir al registro</button>
+            <button class="btn ghost" id="copyConcept">Copiar concepto</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-t"><span>Curso del ЦБ ahora</span><span class="sub" id="ratesSub"></span></div>
+          <div class="rates-now" id="ratesNow"><div class="skel" style="height:64px"></div><div class="skel" style="height:64px"></div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-t"><span>Registro de ingresos</span><span class="sub">Marca cada fila cuando hayas creado el чек</span></div>
+          <div id="lim"></div>
+          <div class="tbl-wrap"><table class="reg" id="reg"></table></div>
+          <div class="note">El registro se guarda solo en este navegador (en el móvil y en el ordenador cada uno tiene el suyo).</div>
+        </div>
+
+        <div class="card">
+          <div class="card-t"><span>Recomendaciones</span><span class="sub">Самозанятый · НПД</span></div>
+          <ul class="tips">
+            <li><span class="k">1</span><div><b>Usa el curso del día en que te llega el dinero</b>, no el del día en que lo cambias a rublos. Los ingresos en divisa se pasan a rublos con el curso oficial del ЦБ de la fecha en que recibes el pago. Por eso esta página te pide la fecha.</div></li>
+            <li><span class="k">2</span><div><b>Declara lo que pagó el cliente, sin restar comisiones</b> (Wise, PayPal, plataformas). En НПД no se descuentan gastos, así que restarlas puede salir como declarar de menos.</div></li>
+            <li><span class="k">3</span><div><b>Plazo del чек:</b> con pagos por transferencia, como muy tarde el <b>día 9 del mes siguiente</b>. Lo más cómodo es hacerlo el mismo día que cobras y marcarlo aquí.</div></li>
+            <li><span class="k">4</span><div><b>Pago del impuesto:</b> Мой налог calcula el total del mes y se paga <b>hasta el día 28 del mes siguiente</b>. Esta página te da una estimación para que reserves el dinero.</div></li>
+            <li><span class="k">5</span><div><b>4% o 6%:</b> 4% si te paga una persona; 6% si te paga una empresa o un ИП, también si es extranjera (en el чек eliges «Иностранная организация»).</div></li>
+            <li><span class="k">6</span><div><b>Deducción de 10 000 ₽:</b> mientras no se acabe, Hacienda baja el tipo al 3% / 4%. Por eso lo que pagues de verdad puede ser algo menos que la estimación.</div></li>
+            <li><span class="k">7</span><div><b>Límite de 2 400 000 ₽ al año.</b> La barra del registro te avisa cuando te acerques.</div></li>
+            <li><span class="k">8</span><div><b>Guarda una prueba de cada pago</b> (captura del ingreso con fecha e importe). Si te equivocas en un чек, puedes anularlo en Мой налог y crear otro.</div></li>
+          </ul>
+          <div class="note">Esto es una ayuda para calcular, no asesoramiento fiscal. Si tienes un caso raro (pagos en cripto, Robux, cuentas en el extranjero), confírmalo en nalog.ru o con un contable.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div class="toast" id="toast"></div>
+
+  <script>
+  (() => {
+    const $ = (s) => document.querySelector(s);
+    const store = {
+      get(k, d) { try { const v = localStorage.getItem("npd." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+      set(k, v) { try { localStorage.setItem("npd." + k, JSON.stringify(v)); } catch {} },
+    };
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const SYM = { EUR: "€", USD: "$" };
+    const rub = (n) => n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₽";
+    const num = (n, d = 4) => n.toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d });
+    const r2 = (n) => Math.round(n * 100) / 100;
+    const pad = (n) => String(n).padStart(2, "0");
+    const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const dmy = (s) => { const [y, m, d] = s.split("-"); return `${d}.${m}.${y}`; };
+    const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const today = () => iso(new Date());
+
+    function toast(msg, bad) {
+      const t = $("#toast"); t.textContent = msg; t.style.color = bad ? "var(--bad)" : "";
+      t.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("on"), 2200);
+    }
+    async function copy(text, label) {
+      try { await navigator.clipboard.writeText(text); toast("Copiado: " + (label || text)); }
+      catch { prompt("Copia esto:", text); }
+    }
+
+    // ---------- Curso del ЦБ (cbr-xml-daily.ru replica los datos oficiales del ЦБ РФ) ----------
+    const cache = store.get("cache", {});
+    async function fetchJSON(url) {
+      const r = await fetch(url, { cache: "no-store" });
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }
+    // Curso vigente en una fecha: el ЦБ no fija curso en domingos, lunes ni festivos;
+    // ese día rige el último curso fijado, así que se busca hacia atrás.
+    async function rateOn(date) {
+      if (cache[date]) return cache[date];
+      let d = new Date(date + "T12:00:00"), fallos = 0;
+      for (let i = 0; i < 12; i++) {
+        const key = iso(d);
+        // Los días sin curso devuelven 404 sin cabecera CORS, y el navegador lo ve como "Failed to fetch".
+        let j = null;
+        try { j = await fetchJSON(`https://www.cbr-xml-daily.ru/archive/${key.replace(/-/g, "/")}/daily_json.js`); }
+        catch { fallos++; }
+        if (j && j.Valute) {
+          const v = { USD: j.Valute.USD.Value / j.Valute.USD.Nominal, EUR: j.Valute.EUR.Value / j.Valute.EUR.Nominal, desde: key };
+          if (date < today()) { cache[date] = v; store.set("cache", cache); }
+          return v;
+        }
+        d.setDate(d.getDate() - 1);
+      }
+      throw new Error(fallos >= 12 ? "sin conexión" : "sin curso");
+    }
+
+    // ---------- Estado ----------
+    let cur = store.get("cur", "EUR");
+    let tipo = store.get("tipo", "4");
+    let last = null; // último cálculo válido
+    $("#amt").value = store.get("amt", "");
+    $("#fecha").value = today();
+    $("#fecha").max = today();
+    $("#concepto").value = store.get("concepto", "Услуги по 3D-моделированию");
+    const d0 = new Date();
+    $("#hoy").textContent = `${d0.getDate()} de ${MESES[d0.getMonth()]} de ${d0.getFullYear()}`;
+
+    function segs() {
+      document.querySelectorAll("#cur button").forEach((b) => b.classList.toggle("on", b.dataset.c === cur));
+      document.querySelectorAll("#tipo button").forEach((b) => b.classList.toggle("on", b.dataset.t === tipo));
+    }
+
+    let seq = 0;
+    async function calc() {
+      segs();
+      const amount = parseFloat(String($("#amt").value).replace(",", ".")) || 0;
+      const fecha = $("#fecha").value || today();
+      store.set("amt", $("#amt").value); store.set("cur", cur); store.set("tipo", tipo);
+      const my = ++seq;
+      $("#curso").innerHTML = "Cargando el curso del ЦБ…";
+      let rate;
+      try { rate = await rateOn(fecha); }
+      catch (e) { if (my === seq) { $("#curso").innerHTML = `<span class="aviso">No se pudo cargar el curso del ЦБ (${esc(e.message)}). Revisa la conexión y vuelve a intentarlo.</span>`; $("#res").innerHTML = ""; } return; }
+      if (my !== seq) return;
+      const r = rate[cur];
+      const total = r2(amount * r);
+      const pct = Number(tipo);
+      const tax = r2(total * pct / 100);
+      last = { fecha, amount, cur, rate: r, desde: rate.desde, rub: total, pct };
+      $("#res").innerHTML = `
+        <div class="box main"><span class="lb">Suma a declarar</span><span class="v">${rub(total)}</span>
+          <button class="copy" id="copyRub">Copiar ${total.toFixed(2)}</button></div>
+        <div class="box"><span class="lb">Impuesto aprox. (${pct}%)</span><span class="v">${rub(tax)}</span><span class="s">Con deducción: ${rub(r2(total * (pct - 1) / 100))} (${pct - 1}%)</span></div>
+        <div class="box"><span class="lb">Te queda</span><span class="v">${rub(r2(total - tax))}</span><span class="s">${num(amount, 2)} ${SYM[cur]} menos el impuesto</span></div>`;
+      const otro = rate.desde !== fecha;
+      $("#curso").innerHTML = `Curso del ЦБ para el <b>${dmy(fecha)}</b>: <b>1 ${cur} = ${num(r)} ₽</b>` +
+        (otro ? ` <span class="aviso">· ese día el ЦБ no fijó curso nuevo, rige el fijado para el ${dmy(rate.desde)}</span>` : "") +
+        `<br><span style="color:var(--dim)">${num(amount, 2)} × ${num(r)} = ${rub(total)} (redondeado a kopeks)</span>`;
+      $("#copyRub").onclick = () => copy(total.toFixed(2), rub(total));
+    }
+
+    $("#cur").onclick = (e) => { const b = e.target.closest("button"); if (b) { cur = b.dataset.c; calc(); } };
+    $("#tipo").onclick = (e) => { const b = e.target.closest("button"); if (b) { tipo = b.dataset.t; calc(); } };
+    $("#amt").oninput = calc;
+    $("#fecha").onchange = calc;
+    $("#concepto").oninput = () => store.set("concepto", $("#concepto").value);
+    $("#copyConcept").onclick = () => copy($("#concepto").value.trim() || $("#concepto").placeholder);
+
+    // ---------- Registro ----------
+    let reg = store.get("registro", []);
+    $("#add").onclick = () => {
+      if (!last || !last.amount) { toast("Escribe un importe primero", true); return; }
+      reg.push({ id: Date.now().toString(36), ...last, nota: $("#nota").value.trim(), concepto: $("#concepto").value.trim(), hecho: false });
+      store.set("registro", reg);
+      $("#nota").value = "";
+      drawReg(); toast("Añadido al registro");
+    };
+
+    function drawReg() {
+      reg.sort((a, b) => (b.fecha > a.fecha ? 1 : b.fecha < a.fecha ? -1 : 0));
+      const y = String(new Date().getFullYear());
+      const anual = reg.filter((e) => e.fecha.startsWith(y)).reduce((s, e) => s + e.rub, 0);
+      const LIM = 2400000, p = Math.min(100, anual / LIM * 100);
+      const pend = reg.filter((e) => !e.hecho);
+      $("#lim").innerHTML = `
+        <div class="sumrow"><span>Ingresos ${y}: <b>${rub(anual)}</b></span><span>Pendientes de чек: <b>${pend.length}</b>${pend.length ? ` · ${rub(pend.reduce((s, e) => s + e.rub, 0))}` : ""}</span></div>
+        <div class="lim"><i style="width:${p}%;${p > 85 ? "background:var(--warn)" : ""}"></i></div>
+        <div class="note" style="margin:0 0 10px">${p.toFixed(1)}% del límite anual de 2 400 000 ₽</div>`;
+      if (!reg.length) { $("#reg").innerHTML = `<tr><td class="empty" style="color:var(--dim);padding:16px 8px">Aún no hay nada. Calcula una suma y pulsa «Añadir al registro».</td></tr>`; return; }
+      const meses = {};
+      reg.forEach((e) => (meses[e.fecha.slice(0, 7)] ||= []).push(e));
+      let html = `<tr><th>✓</th><th>Fecha</th><th>Cliente</th><th style="text-align:right">Importe</th><th style="text-align:right">Curso</th><th style="text-align:right">A declarar</th><th style="text-align:right">Impuesto</th><th></th></tr>`;
+      for (const [m, list] of Object.entries(meses)) {
+        const [yy, mm] = m.split("-");
+        const tot = list.reduce((s, e) => s + e.rub, 0), tx = list.reduce((s, e) => s + e.rub * e.pct / 100, 0);
+        const lim = new Date(+yy, +mm, 9), pago = new Date(+yy, +mm, 28);
+        html += `<tr class="mth"><td colspan="5">${MESES[+mm - 1]} ${yy} <span style="color:var(--dim);font-weight:400;font-size:11.5px">· чеки hasta el ${lim.getDate()}.${pad(lim.getMonth() + 1)} · pago hasta el ${pago.getDate()}.${pad(pago.getMonth() + 1)}</span></td><td class="n">${rub(tot)}</td><td class="n">${rub(r2(tx))}</td><td></td></tr>`;
+        html += list.map((e) => `<tr class="${e.hecho ? "done" : ""}" data-id="${e.id}">
+          <td><input type="checkbox" class="chk" ${e.hecho ? "checked" : ""} title="чек creado"></td>
+          <td>${dmy(e.fecha)}</td>
+          <td>${esc(e.nota || "—")} <span class="pill ${e.pct === 6 ? "p6" : ""}">${e.pct}%</span></td>
+          <td class="n">${num(e.amount, 2)} ${SYM[e.cur]}</td>
+          <td class="n">${num(e.rate)}</td>
+          <td class="n"><button class="copy" style="margin:0" data-copy="${e.rub.toFixed(2)}">${rub(e.rub)}</button></td>
+          <td class="n">${rub(r2(e.rub * e.pct / 100))}</td>
+          <td><button class="ib del" title="Borrar">✕</button></td></tr>`).join("");
+      }
+      $("#reg").innerHTML = html;
+    }
+    $("#reg").onclick = (e) => {
+      const tr = e.target.closest("tr[data-id]"); if (!tr) return;
+      const it = reg.find((x) => x.id === tr.dataset.id); if (!it) return;
+      if (e.target.matches(".chk")) { it.hecho = e.target.checked; store.set("registro", reg); drawReg(); if (it.hecho) toast("Marcado como declarado"); }
+      else if (e.target.closest("[data-copy]")) copy(e.target.closest("[data-copy]").dataset.copy, rub(it.rub));
+      else if (e.target.closest(".del") && confirm("¿Borrar esta fila del registro?")) { reg = reg.filter((x) => x !== it); store.set("registro", reg); drawReg(); }
+    };
+
+    // ---------- Curso actual (hoy y, si ya está publicado, mañana) ----------
+    async function ratesNow() {
+      try {
+        const j = await fetchJSON("https://www.cbr-xml-daily.ru/daily_json.js");
+        const dia = j.Date.slice(0, 10);
+        const mañana = dia > today();
+        const box = (c) => {
+          const v = j.Valute[c], val = v.Value / v.Nominal, prev = v.Previous / v.Nominal, d = val - prev;
+          return `<div class="box"><div class="lb" style="color:var(--muted);font-size:12px">1 ${c}</div><div class="v">${num(val)} ₽</div>
+            <div class="s"><span class="${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"} ${num(Math.abs(d))}</span> respecto al curso anterior</div></div>`;
+        };
+        $("#ratesNow").innerHTML = box("USD") + box("EUR");
+        $("#ratesSub").textContent = mañana ? `Ya publicado para mañana, ${dmy(dia)}` : `Vigente desde el ${dmy(dia)}`;
+      } catch (e) {
+        $("#ratesNow").innerHTML = `<div class="curso"><span class="aviso">No se pudo cargar el curso (${esc(e.message)}).</span></div>`;
+      }
+    }
+
+    segs(); calc(); drawReg(); ratesNow();
+  })();
+  </script>
+</body>
+</html>
