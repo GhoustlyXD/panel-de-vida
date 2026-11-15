@@ -1487,5 +1487,10 @@
     if (!S.pin) return lockScreen();
     try { await loadAll(); start(); } catch { lockScreen("Vuelve a introducir tu PIN."); }
   }
+  // Calendario al pulsar en cualquier parte de un campo de fecha.
+  document.addEventListener("click", (e) => {
+    const i = e.target.closest && e.target.closest('input[type="date"]');
+    if (i && i.showPicker) try { i.showPicker(); } catch {}
+  });
   boot();
 })();

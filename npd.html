@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
   <style>
     .brand .dot { background: var(--ok); box-shadow: 0 0 14px var(--ok); }
     .top { grid-template-columns: 1fr auto; }
@@ -89,7 +89,7 @@
             <label class="fl">Importe que pagó el cliente
               <input class="inp" id="amt" type="number" inputmode="decimal" min="0" step="any" placeholder="0">
             </label>
-            <div class="seg lg" id="cur"><button type="button" data-c="EUR">€ EUR</button><button type="button" data-c="USD">$ USD</button></div>
+            <div class="seg lg" id="cur"><button type="button" data-c="EUR">€ EUR</button><button type="button" data-c="USD">$ USD</button><button type="button" data-c="RUB">₽ RUB</button></div>
           </div>
           <div class="rowf2">
             <label class="fl">Fecha en que recibiste el dinero
@@ -121,7 +121,32 @@
         </div>
 
         <div class="card">
-          <div class="card-t"><span>Registro de ingresos</span><span class="sub">Marca cada fila cuando hayas creado el чек</span></div>
+          <div class="card-t"><span>Añadir чеки que ya hiciste en Мой налог</span><span class="sub">Para meses anteriores</span></div>
+          <div class="muted" style="font-size:12.5px;line-height:1.5;margin:-6px 0 12px">Copia de <a href="https://lknpd.nalog.ru/sales" target="_blank" rel="noopener" style="color:var(--ok)">Мой налог → Продажи</a> la fecha y los rublos de cada чек. Si prefieres, pon el total del mes con cualquier día de ese mes. Se guardan ya marcados como declarados.</div>
+          <div class="rowf2" style="margin-top:0">
+            <label class="fl">Fecha del чек
+              <input class="inp" id="nFecha" type="date">
+            </label>
+            <label class="fl">Importe en rublos
+              <input class="inp" id="nAmt" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0,00">
+            </label>
+          </div>
+          <div class="rowf2">
+            <label class="fl">Cliente
+              <div class="seg lg" id="nTipo"><button type="button" data-t="4">Particular · 4%</button><button type="button" data-t="6">Empresa / ИП · 6%</button></div>
+            </label>
+            <label class="fl">Nota (opcional)
+              <input class="inp" id="nNota" placeholder="p. ej. total de septiembre">
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;align-items:center">
+            <button class="btn green" id="nAdd">＋ Añadir como declarado</button>
+            <span class="muted" style="font-size:12px" id="nMsg"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-t"><span>Registro de ingresos</span><span class="sub">Lo calculado arriba y lo que ya tenías en Мой налог</span></div>
           <div id="lim"></div>
           <div class="tbl-wrap"><table class="reg" id="reg"></table></div>
           <div class="note">El registro se guarda solo en este navegador (en el móvil y en el ordenador cada uno tiene el suyo).</div>
@@ -154,7 +179,7 @@
       set(k, v) { try { localStorage.setItem("npd." + k, JSON.stringify(v)); } catch {} },
     };
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-    const SYM = { EUR: "€", USD: "$" };
+    const SYM = { EUR: "€", USD: "$", RUB: "₽" };
     const rub = (n) => n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₽";
     const num = (n, d = 4) => n.toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d });
     const r2 = (n) => Math.round(n * 100) / 100;
@@ -230,7 +255,7 @@
       try { rate = await rateOn(fecha); }
       catch (e) { if (my === seq) { $("#curso").innerHTML = `<span class="aviso">No se pudo cargar el curso del ЦБ (${esc(e.message)}). Revisa la conexión y vuelve a intentarlo.</span>`; $("#res").innerHTML = ""; } return; }
       if (my !== seq) return;
-      const r = rate[cur];
+      const r = cur === "RUB" ? 1 : rate[cur];
       const total = r2(amount * r);
       const pct = Number(tipo);
       const tax = r2(total * pct / 100);
@@ -241,7 +266,8 @@
         <div class="box"><span class="lb">Impuesto aprox. (${pct}%)</span><span class="v">${rub(tax)}</span><span class="s">Con deducción: ${rub(r2(total * (pct - 1) / 100))} (${pct - 1}%)</span></div>
         <div class="box"><span class="lb">Te queda</span><span class="v">${rub(r2(total - tax))}</span><span class="s">${num(amount, 2)} ${SYM[cur]} menos el impuesto</span></div>`;
       const otro = rate.desde !== fecha;
-      $("#curso").innerHTML = `Curso del ЦБ para el <b>${dmy(fecha)}</b>: <b>1 ${cur} = ${num(r)} ₽</b>` +
+      if (cur === "RUB") { $("#curso").innerHTML = `En rublos no hace falta curso: se declara tal cual.`; }
+      else $("#curso").innerHTML = `Curso del ЦБ para el <b>${dmy(fecha)}</b>: <b>1 ${cur} = ${num(r)} ₽</b>` +
         (otro ? ` <span class="aviso">· ese día el ЦБ no fijó curso nuevo, rige el fijado para el ${dmy(rate.desde)}</span>` : "") +
         `<br><span style="color:var(--dim)">${num(amount, 2)} × ${num(r)} = ${rub(total)} (redondeado a kopeks)</span>`;
       $("#copyRub").onclick = () => copy(total.toFixed(2), rub(total));
@@ -263,6 +289,30 @@
       $("#nota").value = "";
       drawReg(); toast("Añadido al registro");
     };
+
+    // ---------- Чеки ya hechos en Мой налог (meses anteriores) ----------
+    let nTipo = store.get("nTipo", "4");
+    $("#nFecha").max = today();
+    const nSegs = () => document.querySelectorAll("#nTipo button").forEach((b) => b.classList.toggle("on", b.dataset.t === nTipo));
+    nSegs();
+    $("#nTipo").onclick = (e) => { const b = e.target.closest("button"); if (b) { nTipo = b.dataset.t; store.set("nTipo", nTipo); nSegs(); } };
+    $("#nAdd").onclick = () => {
+      const fecha = $("#nFecha").value, amount = r2(parseFloat(String($("#nAmt").value).replace(",", ".")) || 0);
+      if (!fecha) { toast("Elige la fecha del чек", true); $("#nFecha").focus(); return; }
+      if (!amount) { toast("Escribe el importe en rublos", true); $("#nAmt").focus(); return; }
+      reg.push({ id: Date.now().toString(36), fecha, amount, cur: "RUB", rate: 1, desde: fecha, rub: amount, pct: Number(nTipo), nota: $("#nNota").value.trim(), concepto: "", hecho: true, origen: "nalog" });
+      store.set("registro", reg);
+      $("#nAmt").value = ""; $("#nNota").value = "";
+      $("#nMsg").textContent = `Añadido: ${dmy(fecha)} · ${rub(amount)}`;
+      drawReg(); toast("Añadido al registro"); $("#nAmt").focus();
+    };
+    $("#nAmt").onkeydown = (e) => { if (e.key === "Enter") $("#nAdd").click(); };
+
+    // Calendario al pulsar en cualquier parte de un campo de fecha.
+    document.addEventListener("click", (e) => {
+      const i = e.target.closest('input[type="date"]');
+      if (i && i.showPicker) try { i.showPicker(); } catch {}
+    });
 
     function drawReg() {
       reg.sort((a, b) => (b.fecha > a.fecha ? 1 : b.fecha < a.fecha ? -1 : 0));
@@ -288,7 +338,7 @@
           <td>${dmy(e.fecha)}</td>
           <td>${esc(e.nota || "—")} <span class="pill ${e.pct === 6 ? "p6" : ""}">${e.pct}%</span></td>
           <td class="n">${num(e.amount, 2)} ${SYM[e.cur]}</td>
-          <td class="n">${num(e.rate)}</td>
+          <td class="n">${e.cur === "RUB" ? (e.origen === "nalog" ? `<span class="pill">de Мой налог</span>` : "—") : num(e.rate)}</td>
           <td class="n"><button class="copy" style="margin:0" data-copy="${e.rub.toFixed(2)}">${rub(e.rub)}</button></td>
           <td class="n">${rub(r2(e.rub * e.pct / 100))}</td>
           <td><button class="ib del" title="Borrar">✕</button></td></tr>`).join("");
