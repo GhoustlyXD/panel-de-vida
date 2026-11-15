@@ -379,3 +379,7 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; backgr
 @keyframes cardIn { from { opacity: 0; transform: translateY(18px) scale(.94); } to { opacity: 1; transform: none; } }
 .day-models .cam { display: none; }
 .day-story.now .story-line, .day-story.now .gcard, .day-story.now .dot, .day-story.now .line, .day-story.now .area { animation-delay: 0s !important; }
+.day-wait { padding: 14px; border-radius: 14px; border: 1px dashed rgba(245,184,61,.35); background: rgba(245,184,61,.04); }
+.day-wait .group-t { color: var(--warn); }
+.gcard.wait { opacity: .8; }
+.gcard.wait .gp .tag { display: inline-block; font-size: 10px; }

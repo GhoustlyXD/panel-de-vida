@@ -1282,7 +1282,11 @@
       else acts = `<button class="btn ghost" id="dayToday">Ir a hoy</button><button class="btn" data-close>Cerrar</button>`;
 
       // ---- La historia del día, paso a paso ----
-      const seen = new Set(), modelos = [...st.entregadas, ...st.cobradas].filter((p) => !seen.has(p.id) && seen.add(p.id));
+      // Solo cuentan como modelos del día los que pasaron a Pagadas ese día.
+      const modelos = st.cobradas;
+      // Lo que queda esperando pago: hoy, todo lo pendiente de cobro; otro día, lo entregado ese día que aún no se ha pagado.
+      const porCobrar = (isToday ? awaiting() : st.entregadas.filter((p) => p.Estado === "En espera de revisión"));
+      const porCobrarUsd = porCobrar.reduce((a, p) => a + remainingUsd(p), 0);
       const conTiempo = modelos.filter((p) => secondsOf(p) >= 60);
       const avgSecs = conTiempo.length ? conTiempo.reduce((a, p) => a + secondsOf(p), 0) / conTiempo.length : 0;
       const horas = conTiempo.reduce((a, p) => a + secondsOf(p), 0) / 3600;
@@ -1300,7 +1304,10 @@
       if (parts.length === 1) parts.push({ html: line("moon", `No hubo entregas ni cobros este día`) });
       parts.push({ cls: "sl-block", html: `<div class="card day-chart"><div class="card-t"><span>Ganancias · últimos 14 días</span><span class="sub">pulsa un punto para ver ese día</span></div>
         ${lineChart(hist.map((x) => ({ label: `${DSEM[x.d.getDay()]} ${x.d.getDate()}`, v: x.v, hl: x.k === iso, day: x.k, tip: `${DSEM[x.d.getDay()]} ${x.d.getDate()} ${MES[x.d.getMonth()]} · ${money(x.v)}` })), { h: 200, money: true })}</div>` });
-      if (modelos.length) parts.push({ cls: "sl-block", html: `<div class="group-t" style="margin:4px 0 10px">Modelos de este día <span class="dim">${modelos.length}</span></div><div class="ggrid sm day-models">${modelos.map((p, i) => gcard(p, "sm").replace('class="gcard sm"', `class="gcard sm" style="--i:${i}"`)).join("")}</div>` });
+      if (modelos.length) parts.push({ cls: "sl-block", html: `<div class="group-t" style="margin:4px 0 10px">Modelos pagados este día <span class="dim">${modelos.length}</span></div><div class="ggrid sm day-models">${modelos.map((p, i) => gcard(p, "sm").replace('class="gcard sm"', `class="gcard sm" style="--i:${i}"`)).join("")}</div>` });
+      if (porCobrar.length) parts.push({ cls: "sl-block", html: `<div class="day-wait"><div class="group-t" style="margin:0 0 4px">${isToday ? "¡Aún faltan por ser pagados para mañana!" : "Entregados ese día que aún esperan pago"} <span class="dim">${porCobrar.length}</span></div>
+        <div class="muted" style="font-size:12px;margin-bottom:10px">Falta por cobrar: <b class="warn">${money(porCobrarUsd)}</b> · no cuentan como ingreso hasta que pasen a Pagadas</div>
+        <div class="ggrid sm day-models">${porCobrar.map((p, i) => gcard(p, "sm").replace('class="gcard sm"', `class="gcard sm wait" style="--i:${i}"`)).join("")}</div></div>` });
       parts.push({ cls: "day-msg", html: `“${esc(msg)}”` });
       // Ritmo: al abrir, más pausado; al cambiar de día, más rápido.
       const gap = first ? 380 : 170;
