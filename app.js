@@ -463,7 +463,7 @@
     const path = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
     s += `<path class="area" d="${path} L${X(items.length - 1)} ${pad.t + ih} L${X(0)} ${pad.t + ih} Z"/><path class="line" d="${path}"/>`;
     items.forEach((d, i) => {
-      s += `<circle class="dot" cx="${pts[i][0]}" cy="${pts[i][1]}" r="3.5" data-tip="${esc(d.label + " · " + (isMoney ? money(d.v) : d.v))}"/>`;
+      s += `<circle class="dot${d.hl ? " hl" : ""}" style="--k:${i}" cx="${pts[i][0]}" cy="${pts[i][1]}" r="${d.hl ? 6 : 3.5}" ${d.day ? `data-day="${d.day}" ` : ""}data-tip="${esc(d.tip || d.label + " · " + (isMoney ? money(d.v) : d.v))}"/>`;
       s += `<text x="${pts[i][0]}" y="${h - 6}" text-anchor="middle">${esc(d.label)}</text>`;
     });
     return s + `</svg>`;
@@ -1281,6 +1281,32 @@
       else if (isToday) acts = `<button class="btn ghost" data-close>Seguir trabajando</button><button class="btn" id="closeDayOk">${I("moon")} Cerrar el día</button>`;
       else acts = `<button class="btn ghost" id="dayToday">Ir a hoy</button><button class="btn" data-close>Cerrar</button>`;
 
+      // ---- La historia del día, paso a paso ----
+      const seen = new Set(), modelos = [...st.entregadas, ...st.cobradas].filter((p) => !seen.has(p.id) && seen.add(p.id));
+      const conTiempo = modelos.filter((p) => secondsOf(p) >= 60);
+      const avgSecs = conTiempo.length ? conTiempo.reduce((a, p) => a + secondsOf(p), 0) / conTiempo.length : 0;
+      const horas = conTiempo.reduce((a, p) => a + secondsOf(p), 0) / 3600;
+      const perHour = horas > 0 ? conTiempo.reduce((a, p) => a + (p.usd || 0), 0) / horas : 0;
+      const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+      const line = (icon, html) => `<span class="sl-ic">${I(icon)}</span><span>${html}</span>`;
+      const parts = [];
+      parts.push({ cls: "sl-hero", html: `<div class="day-hero"><div><div class="muted" style="font-size:12px">Has generado</div><div class="big" data-count>${money(st.earned)}</div></div>${cmp}</div>` });
+      if (st.entregadas.length) parts.push({ html: line("check", `Terminaste <b data-count>${st.entregadas.length}</b> ${st.entregadas.length === 1 ? "comisión" : "comisiones"}`) });
+      if (st.cobradas.length) parts.push({ html: line("wallet", `Te pagaron <b data-count>${st.cobradas.length}</b> ${st.cobradas.length === 1 ? "comisión" : "comisiones"}: <b data-count>${money(st.earned)}</b>`) });
+      if (avgSecs) parts.push({ html: line("clock", `Tardaste de media <b>${hm(avgSecs)}</b> por modelo`) });
+      if (perHour) parts.push({ html: line("trend", `Ganaste de media <b class="rate" data-count>${money(perHour, { dec: 0 })}</b>/h`) });
+      if (st.nuevas.length) parts.push({ html: line("plus", `Entraron <b data-count>${st.nuevas.length}</b> ${st.nuevas.length === 1 ? "pedido nuevo" : "pedidos nuevos"}`) });
+      if (st.secs >= 60 || st.tareas.length) parts.push({ html: line("sun", [st.secs >= 60 ? `Cronómetro: <b>${hm(st.secs)}</b>` : "", st.tareas.length ? n(st.tareas.length, "tarea hecha", "tareas hechas") : ""].filter(Boolean).join(" · ")) });
+      if (parts.length === 1) parts.push({ html: line("moon", `No hubo entregas ni cobros este día`) });
+      parts.push({ cls: "sl-block", html: `<div class="card day-chart"><div class="card-t"><span>Ganancias · últimos 14 días</span><span class="sub">pulsa un punto para ver ese día</span></div>
+        ${lineChart(hist.map((x) => ({ label: `${DSEM[x.d.getDay()]} ${x.d.getDate()}`, v: x.v, hl: x.k === iso, day: x.k, tip: `${DSEM[x.d.getDay()]} ${x.d.getDate()} ${MES[x.d.getMonth()]} · ${money(x.v)}` })), { h: 200, money: true })}</div>` });
+      if (modelos.length) parts.push({ cls: "sl-block", html: `<div class="group-t" style="margin:4px 0 10px">Modelos de este día <span class="dim">${modelos.length}</span></div><div class="ggrid sm day-models">${modelos.map((p, i) => gcard(p, "sm").replace('class="gcard sm"', `class="gcard sm" style="--i:${i}"`)).join("")}</div>` });
+      parts.push({ cls: "day-msg", html: `“${esc(msg)}”` });
+      // Ritmo: al abrir, más pausado; al cambiar de día, más rápido.
+      const gap = first ? 380 : 170;
+      let t = first ? 150 : 40;
+      const steps = parts.map((s) => { const r = { ...s, d: t }; t += s.cls === "sl-block" ? gap * 1.6 : gap; return r; });
+
       $("#dayBody", m.el).innerHTML = `
         <h3><span style="display:flex;align-items:center;gap:8px">${I("moon")} ${titulo}</span> <button class="ib" data-close>${I("x")}</button></h3>
         <div class="day-nav">
@@ -1288,31 +1314,22 @@
           <span>${dObj.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}${closed && !isToday ? ` <span class="tag gray" style="margin-left:6px">cerrado</span>` : ""}</span>
           <button class="ib" id="dayNext" title="Día siguiente" ${isToday ? "disabled" : ""}>›</button>
         </div>
-        <div class="${first ? "" : "day-swap"}">
-        <div class="day-hero">
-          <div><div class="muted" style="font-size:12px">Generado · pedidos pasados a Pagadas</div><div class="big" data-count>${money(st.earned)}</div></div>
-          ${cmp}
-        </div>
-        <div class="grid g4 ${first ? "stagger" : ""}">
-          <div class="card stat"><div class="lb">Pagadas</div><div class="v" data-count>${st.cobradas.length}</div><div class="s">comisiones cobradas del todo</div></div>
-          <div class="card stat"><div class="lb">Entregadas</div><div class="v" data-count>${st.entregadas.length}</div><div class="s">terminadas ese día</div></div>
-          <div class="card stat"><div class="lb">Nuevas</div><div class="v" data-count>${st.nuevas.length}</div><div class="s">pedidos recibidos</div></div>
-          <div class="card stat"><div class="lb">Tiempo</div><div class="v" style="font-size:20px">${st.secs >= 60 ? hm(st.secs) : "—"}</div><div class="s">${st.tareas.length} ${st.tareas.length === 1 ? "tarea hecha" : "tareas hechas"}</div></div>
-        </div>
-        <div class="card" style="margin-top:12px">
-          <div class="card-t"><span>Ganancias · últimos 14 días</span><span class="sub">pulsa una barra para ver ese día</span></div>
-          ${barChart(hist.map((x) => ({ label: `${DSEM[x.d.getDay()]} ${x.d.getDate()}`, v: x.v, hl: x.k === iso, day: x.k, tip: `${DSEM[x.d.getDay()]} ${x.d.getDate()} ${MES[x.d.getMonth()]} · ${money(x.v)}` })), { h: 190 })}
-        </div>
-        ${st.cobradas.length ? `<div class="day-list" style="margin-top:10px">${st.cobradas.map((p) => `<div class="item" style="border-top-color:var(--line)">${avatar(p.client)}<div class="main"><div class="t">${esc(p.title)}</div><div class="m">${esc(p.client)}${p["Método de pago"] ? " · " + esc(p["Método de pago"]) : ""}</div></div><span class="amt">${money(p.usd)}</span></div>`).join("")}</div>` : ""}
-        <div class="day-msg">“${esc(msg)}”</div>
+        <div class="day-story">
+          ${steps.map((s) => `<div class="story-line ${s.cls || ""}" style="--d:${s.d}ms">${s.html}</div>`).join("")}
         </div>
         <div class="acts" style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">${acts}</div>`;
 
-      countUp(m.el);
+      // Cada paso aparece a su tiempo y sus números cuentan desde 0 justo cuando se ve.
+      const lines = $$(".story-line", m.el);
+      lines.forEach((el, i) => setTimeout(() => { if (el.isConnected) countUp(el); }, steps[i].d));
+      $$(".chart .line", m.el).forEach((p) => p.style.setProperty("--len", Math.ceil(p.getTotalLength())));
       bindTips();
+      $$("[data-open]", m.el).forEach((c) => c.addEventListener("click", () => detailModal(c.dataset.id)));
+      const skip = $(".day-story", m.el);
+      skip.addEventListener("dblclick", () => skip.classList.add("now"));
       $("#dayPrev", m.el).onclick = () => draw(addDays(iso, -1));
       $("#dayNext", m.el).onclick = () => { if (!isToday) draw(addDays(iso, 1)); };
-      $$(".chart .bar[data-day]", m.el).forEach((b) => b.addEventListener("click", () => { $("#tip").style.opacity = 0; draw(b.dataset.day); }));
+      $$(".chart [data-day]", m.el).forEach((b) => b.addEventListener("click", () => { $("#tip").style.opacity = 0; draw(b.dataset.day); }));
       const goToday = $("#dayToday", m.el); if (goToday) goToday.onclick = () => draw(today);
       const reopen = $("#dayReopen", m.el);
       if (reopen) reopen.onclick = () => { setClosed(iso, false); draw(iso); if (S.tab === "hoy") render(); toast("Día reabierto"); };

@@ -361,3 +361,21 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; backgr
 .day-nav .ib:disabled { opacity: .3; cursor: default; }
 .day-swap { animation: viewIn .45s var(--ease) both; }
 .chart .bar[data-day] { cursor: pointer; }
+
+/* ---------- Historia del cierre del día ---------- */
+.story-line { animation: storyIn .75s var(--ease) both; animation-delay: var(--d, 0ms); }
+.story-line.day-msg { animation: storyIn .9s var(--ease) both; animation-delay: var(--d, 0ms); }
+@keyframes storyIn { from { opacity: 0; transform: translateY(16px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+.day-story > .story-line:not(.sl-hero):not(.sl-block):not(.day-msg) { display: flex; align-items: center; gap: 12px; padding: 10px 2px; font-size: 15px; color: #d6d6da; border-bottom: 1px solid #1c1c1f; }
+.day-story b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.sl-ic { width: 30px; height: 30px; flex: none; border-radius: 9px; display: grid; place-items: center; background: var(--panel-3); color: var(--accent); }
+.sl-block { margin-top: 16px; }
+.day-chart .line { animation-delay: calc(var(--d, 0ms) + 250ms); animation-duration: 1.4s; }
+.day-chart .area { animation-delay: calc(var(--d, 0ms) + 900ms); }
+.day-chart .dot { opacity: 0; animation: fadeIn .4s ease forwards; animation-delay: calc(var(--d, 0ms) + 300ms + var(--k, 0) * 80ms); cursor: pointer; }
+.day-chart .dot:hover { stroke-width: 3; }
+.day-chart .dot.hl { fill: var(--ok); stroke: #0b0b0c; stroke-width: 2.5; filter: drop-shadow(0 0 8px rgba(47,211,107,.7)); }
+.day-models .gcard { animation: cardIn .7s var(--ease) both; animation-delay: calc(var(--d, 0ms) + var(--i, 0) * 140ms); }
+@keyframes cardIn { from { opacity: 0; transform: translateY(18px) scale(.94); } to { opacity: 1; transform: none; } }
+.day-models .cam { display: none; }
+.day-story.now .story-line, .day-story.now .gcard, .day-story.now .dot, .day-story.now .line, .day-story.now .area { animation-delay: 0s !important; }
