@@ -1338,14 +1338,15 @@
       parts.push({ cls: "sl-block", html: `<div class="card day-chart"><div class="card-t"><span>Ganancias · últimos 14 días</span><span class="sub">pulsa un punto para ver ese día</span></div>
         ${lineChart(hist.map((x) => ({ label: `${DSEM[x.d.getDay()]} ${x.d.getDate()}`, v: x.v, hl: x.k === iso, day: x.k, tip: `${DSEM[x.d.getDay()]} ${x.d.getDate()} ${MES[x.d.getMonth()]} · ${money(x.v)}` })), innerWidth < 900 ? { h: 220, w: 460, money: true } : { h: 250, w: 720, money: true })}</div>` });
       if (modelos.length) parts.push({ cls: "sl-block", html: `<div class="group-t" style="margin:4px 0 10px">Modelos pagados este día <span class="dim">${modelos.length}</span></div><div class="ggrid sm day-models">${modelos.map((p, i) => gcard(p, "sm").replace('class="gcard sm"', `class="gcard sm" style="--i:${i}"`)).join("")}</div>` });
-      if (porCobrar.length) parts.push({ cls: "sl-block sl-wait", html: `<div class="day-wait"><div class="group-t" style="margin:0 0 4px">${isToday ? "¡Aún faltan por ser pagados para mañana!" : "Entregados ese día que aún esperan pago"} <span class="dim">${porCobrar.length}</span></div>
-        <div class="muted" style="font-size:12px;margin-bottom:10px">Falta por cobrar: <b class="warn">${money(porCobrarUsd)}</b> · no cuentan como ingreso hasta que pasen a Pagadas</div>
-        <div class="ggrid sm day-models">${porCobrar.map((p, i) => gcard(p, "sm").replace('class="gcard sm"', `class="gcard sm wait" style="--i:${i}"`)).join("")}</div></div>` });
+      // Lo que falta por cobrar va en una franja compacta abajo, a lo ancho, para que se vea sin hacer scroll.
+      if (porCobrar.length) parts.push({ cls: "sl-wait", html: `<div class="day-wait">
+        <div class="dw-head"><span class="dw-t">${isToday ? "¡Aún faltan por ser pagados para mañana!" : "Entregados ese día que aún esperan pago"}</span><span class="muted">${porCobrar.length} · falta por cobrar <b class="warn" data-count>${money(porCobrarUsd)}</b> · aún no cuentan como ingreso</span></div>
+        <div class="dw-list">${porCobrar.map((p, i) => `<div class="dw-item" data-open data-id="${esc(p.id)}" style="--i:${i}"><div class="dw-th">${cover(p)}</div><div class="dw-txt"><div class="dw-n">${esc(p.title)}</div><div class="dw-c">${esc(p.client)}</div></div><b>${money(remainingUsd(p))}</b></div>`).join("")}</div></div>` });
       parts.push({ cls: "day-msg", html: `“${esc(msg)}”` });
       // Ritmo: al abrir, más pausado; al cambiar de día, más rápido.
       const gap = first ? 380 : 170;
       let t = first ? 150 : 40;
-      const steps = parts.map((s) => { const blk = (s.cls || "").includes("sl-block"); const r = { ...s, d: t, col: blk && !s.cls.includes("sl-wait") ? "r" : s.cls === "day-msg" ? "b" : "l" }; t += blk ? gap * 1.6 : gap; return r; });
+      const steps = parts.map((s) => { const blk = (s.cls || "").includes("sl-block"); const r = { ...s, d: t, col: blk ? "r" : s.cls === "day-msg" || s.cls === "sl-wait" ? "b" : "l" }; t += blk ? gap * 1.6 : gap; return r; });
       const storyDiv = (s) => `<div class="story-line ${s.cls || ""}" data-d="${s.d}" style="--d:${s.d}ms">${s.html}</div>`;
 
       $("#dayBody", m.el).innerHTML = `

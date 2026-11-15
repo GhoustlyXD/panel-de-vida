@@ -414,3 +414,22 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; backgr
   .modal.full .ggrid.sm { grid-template-columns: repeat(2, 1fr); }
   .modal.full .day-chart .chart text { font-size: 11px; }
 }
+
+/* Franja compacta de "aún falta por cobrar" */
+.story-line.sl-wait { margin-top: 12px; }
+.day-wait { padding: 12px 14px; }
+.dw-head { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; margin-bottom: 10px; font-size: 12.5px; }
+.dw-t { color: var(--warn); font-weight: 700; font-size: 14px; }
+.dw-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.dw-item { display: flex; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; border-radius: 12px; background: rgba(0,0,0,.35); border: 1px solid rgba(245,184,61,.18); cursor: pointer; transition: border-color .2s, transform .2s; animation: cardIn .6s var(--ease) both; animation-delay: calc(var(--d, 0ms) + var(--i, 0) * 110ms); }
+.dw-item:hover { border-color: var(--warn); transform: translateY(-2px); }
+.dw-th { position: relative; width: 44px; height: 44px; flex: none; border-radius: 9px; overflow: hidden; background: #0d0d0f; }
+.dw-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dw-th .ph { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 700; font-size: 18px; }
+.dw-th .count { display: none; }
+.dw-txt { min-width: 0; flex: 1; }
+.dw-n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dw-c { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dw-item b { font-size: 13px; color: var(--warn); font-variant-numeric: tabular-nums; }
+.day-story.now .dw-item { animation-delay: 0s !important; }
+.modal.full .day-msg { margin-top: 10px; }
