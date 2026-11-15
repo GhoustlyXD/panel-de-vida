@@ -49,6 +49,7 @@
       repeat: '<path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/>',
       chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
       bag: '<path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2"/>',
+      moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/>',
       search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
       camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
       image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>',
@@ -259,6 +260,7 @@
     if (!row) return;
     // Si el cronómetro estaba en marcha, se suma lo que lleva antes de editar.
     if (S.timers[id]) {
+      logWork((Date.now() - S.timers[id]) / 1000);
       row["Segundos trabajados"] = Math.round((Number(row["Segundos trabajados"]) || 0) + (Date.now() - S.timers[id]) / 1000);
       delete S.timers[id]; store.set("timers", S.timers);
     }
@@ -339,9 +341,12 @@
     $$("#cur button").forEach((b) => b.classList.toggle("on", b.dataset.cur === S.cur));
     movePill();
     const fresh = lastTab !== S.tab;
+    // La vista entra desde el lado hacia el que te mueves en la barra de pestañas.
+    const idx = (k) => TABS.findIndex((t) => t[0] === k);
+    const dir = fresh && lastTab ? (idx(S.tab) > idx(lastTab) ? " from-r" : " from-l") : "";
     lastTab = S.tab;
     const html = S.loaded ? (VIEWS[S.tab] || VIEWS.hoy)() : skeleton();
-    $("#main").innerHTML = `<div class="${fresh ? "view" : ""}">${html}</div>`;
+    $("#main").innerHTML = `<div class="${fresh ? "view" + dir : ""}">${html}</div>`;
     if (!fresh) $$(".stagger", $("#main")).forEach((s) => s.classList.remove("stagger"));
     $$("#main .item").forEach((el) => { if (!fresh) el.style.animation = "none"; });
     afterRender(fresh);
@@ -355,22 +360,7 @@
 
   // Animaciones tras pintar: números que suben, barras, anillos, brillo del ratón.
   function afterRender(fresh) {
-    $$("[data-count]").forEach((el) => {
-      const target = el.textContent;
-      if (!fresh) return;
-      const m = target.match(/-?[\d.,]+/);
-      if (!m) return;
-      const num = parseFloat(m[0].replace(/\./g, "").replace(",", "."));
-      if (!isFinite(num) || num === 0) return;
-      const dec = (m[0].split(",")[1] || "").length;
-      const t0 = performance.now(), dur = 900;
-      const step = (t) => {
-        const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
-        el.textContent = target.replace(m[0], (num * e).toLocaleString("es-ES", { minimumFractionDigits: dec, maximumFractionDigits: dec }));
-        if (k < 1) requestAnimationFrame(step); else el.textContent = target;
-      };
-      requestAnimationFrame(step);
-    });
+    if (fresh) countUp($("#main"));
     requestAnimationFrame(() => {
       $$(".progress > div[data-w]").forEach((b) => (b.style.width = b.dataset.w));
       $$(".ring .fg[data-off]").forEach((c) => (c.style.strokeDashoffset = c.dataset.off));
@@ -386,6 +376,25 @@
     bindTips();
     const rb = $("#ratesBtn"); if (rb) rb.addEventListener("click", () => loadRates(true));
     (BIND[S.tab] || (() => {}))();
+  }
+
+  // Números que suben desde 0 (también dentro de ventanas).
+  function countUp(root) {
+    $$("[data-count]", root).forEach((el) => {
+      const target = el.textContent;
+      const m = target.match(/-?[\d.,]+/);
+      if (!m) return;
+      const num = parseFloat(m[0].replace(/\./g, "").replace(",", "."));
+      if (!isFinite(num) || num === 0) return;
+      const dec = (m[0].split(",")[1] || "").length;
+      const t0 = performance.now(), dur = 900;
+      const step = (t) => {
+        const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+        el.textContent = target.replace(m[0], (num * e).toLocaleString("es-ES", { minimumFractionDigits: dec, maximumFractionDigits: dec }));
+        if (k < 1) requestAnimationFrame(step); else el.textContent = target;
+      };
+      requestAnimationFrame(step);
+    });
   }
 
   // ================= Tooltips de gráficos =================
@@ -406,7 +415,8 @@
   const DEFS = `<defs>
     <linearGradient id="gBlue" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a9dff"/><stop offset="1" stop-color="#1c5fb8" stop-opacity=".55"/></linearGradient>
     <linearGradient id="gRed" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff6060"/><stop offset="1" stop-color="#9d2323" stop-opacity=".55"/></linearGradient>
-    <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f8cff" stop-opacity=".28"/><stop offset="1" stop-color="#2f8cff" stop-opacity="0"/></linearGradient></defs>`;
+    <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f8cff" stop-opacity=".28"/><stop offset="1" stop-color="#2f8cff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="gGreen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3fe07c"/><stop offset="1" stop-color="#178a45" stop-opacity=".6"/></linearGradient></defs>`;
   const niceMax = (m) => { if (m <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(m))); return Math.ceil(m / p * 1.15) * p; };
   const axisLabel = (v) => (v >= 1000 ? (v / 1000).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + "k" : Math.round(v).toLocaleString("es-ES"));
 
@@ -422,7 +432,7 @@
     s += `</g>`;
     items.forEach((d, i) => {
       const cx = pad.l + iw * (i + .5) / items.length, bh = Math.max(2, (d.v / max) * ih);
-      s += `<rect class="bar growbar ${red || d.red ? "red" : ""}" style="animation-delay:${i * 40}ms" x="${cx - bw / 2}" y="${pad.t + ih - bh}" width="${bw}" height="${bh}" rx="${Math.min(8, bw / 2)}" data-tip="${esc(d.tip || d.label + " · " + money(d.v))}"/>`;
+      s += `<rect class="bar growbar ${red || d.red ? "red" : ""} ${d.hl ? "hl" : ""}" style="animation-delay:${i * 40}ms" x="${cx - bw / 2}" y="${pad.t + ih - bh}" width="${bw}" height="${bh}" rx="${Math.min(8, bw / 2)}" data-tip="${esc(d.tip || d.label + " · " + money(d.v))}"/>`;
       if (items.length <= 14) s += `<text x="${cx}" y="${h - 6}" text-anchor="middle">${esc(d.label.length > 9 ? d.label.slice(0, 8) + "…" : d.label)}</text>`;
     });
     if (goal) { const y = pad.t + ih - (goal / max) * ih; s += `<line class="goal" x1="${pad.l}" x2="${W - pad.r}" y1="${y}" y2="${y}"/>`; }
@@ -495,7 +505,7 @@
 
     return `
       <div class="h-date">${now.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}</div>
-      <div class="h1">${greet}</div>
+      <div class="h1">${greet}<button class="btn ghost sm ${hr >= 21 && !store.get("closed", {})[todayISO()] ? "glow" : ""}" id="endDay">${I("moon")} Cerrar el día</button></div>
       <div class="grid g4 stagger">
         ${stat("check", "Hoy", `${done}/${tt.length}`, "tareas hechas", "", ring(tt.length ? done / tt.length : 0))}
         ${stat("cal", "Este mes", money(pm.reduce((a, p) => a + p.usd, 0)), `${pm.length} ${pm.length === 1 ? "comisión" : "comisiones"}`)}
@@ -897,7 +907,7 @@
     bg.className = "modal-bg";
     bg.innerHTML = `<div class="modal ${wide ? "wide" : ""}">${html}</div>`;
     document.body.appendChild(bg);
-    const close = () => { bg.style.transition = "opacity .2s"; bg.style.opacity = 0; setTimeout(() => bg.remove(), 200); document.removeEventListener("keydown", onKey); };
+    const close = () => { if (bg.classList.contains("closing")) return; bg.classList.add("closing"); setTimeout(() => bg.remove(), 240); document.removeEventListener("keydown", onKey); };
     const onKey = (e) => e.key === "Escape" && close();
     document.addEventListener("keydown", onKey);
     bg.addEventListener("click", (e) => { if (e.target === bg || e.target.closest("[data-close]")) close(); });
@@ -1204,6 +1214,91 @@
     bindTips();
   }
 
+  // ================= Cierre del día =================
+  // Tiempo de cronómetro por día (solo en este dispositivo): se suma al parar un cronómetro.
+  function logWork(secs) {
+    if (!(secs > 0)) return;
+    const log = store.get("workLog", {}), d = todayISO();
+    log[d] = Math.round((log[d] || 0) + secs);
+    store.set("workLog", log);
+  }
+  const isoOf = (s) => (s ? String(s).slice(0, 10) : "");
+  const addDays = (iso, n) => { const d = parseD(iso); d.setDate(d.getDate() + n); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+  const earnedOn = (iso) => paid().filter((p) => isoOf(p.paidOn) === iso).reduce((a, p) => a + (p.usd || 0), 0);
+
+  function dayStats(iso) {
+    const all = ped();
+    const cobradas = paid().filter((p) => isoOf(p.paidOn) === iso);
+    const entregadas = all.filter((p) => isoOf(p["Fecha de entrega"]) === iso && ["En espera de revisión", "Listo"].includes(p.Estado));
+    const nuevas = all.filter((p) => isoOf(p["Fecha de pedido"]) === iso);
+    const tareas = S.data.tareas.filter((t) => t.Estado === "Hecha" && (t.Fecha === iso || (!t.Fecha && isoOf(t.editado) === iso)));
+    const secs = (store.get("workLog", {})[iso] || 0) + (iso === todayISO() ? Object.values(S.timers).reduce((a, t) => a + (Date.now() - t) / 1000, 0) : 0);
+    const earned = cobradas.reduce((a, p) => a + (p.usd || 0), 0);
+    return { cobradas, entregadas, nuevas, tareas, secs, earned, activity: earned > 0 || entregadas.length || nuevas.length || tareas.length || secs > 60 };
+  }
+
+  function dayModal(iso, { auto = false } = {}) {
+    const st = dayStats(iso);
+    const dObj = parseD(iso);
+    const DSEM = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+    // Últimos 14 días hasta ese día, para comparar.
+    const hist = Array.from({ length: 14 }, (_, i) => { const k = addDays(iso, i - 13), d = parseD(k); return { k, d, v: earnedOn(k) }; });
+    const prev7 = hist.slice(6, 13), avg7 = prev7.reduce((a, x) => a + x.v, 0) / 7;
+    const best = Math.max(...hist.slice(0, 13).map((x) => x.v));
+    const diff = avg7 > 0 ? ((st.earned - avg7) / avg7) * 100 : null;
+    const cmp = st.earned > 0 && st.earned >= best && best >= 0 && hist.some((x) => x.k !== iso && x.v > 0)
+      ? `<span class="cmp ok">🏆 Mejor día de las últimas 2 semanas</span>`
+      : st.earned === 0 && avg7 > 0 ? `<span class="cmp">Sin cobros ese día · media de 7 días: ${money(avg7)}</span>`
+      : diff == null ? (st.earned > 0 ? `<span class="cmp ok">Primer cobro de la semana</span>` : `<span class="cmp">Sin cobros en los 7 días anteriores</span>`)
+      : `<span class="cmp ${diff >= 0 ? "ok" : "bad"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff).toFixed(0)}% vs media de 7 días (${money(avg7)})</span>`;
+    const msg = st.earned > 0 ? (st.earned >= avg7 ? "Gran día. Lo has ganado, ahora descansa." : "Ha entrado dinero: cada cobro suma.")
+      : st.entregadas.length ? "Has entregado trabajo: el cobro llegará."
+      : st.tareas.length || st.secs > 60 ? "Día de avanzar. No todo se ve en la cuenta el mismo día."
+      : "Día tranquilo. Mañana más; descansar también cuenta.";
+    const titulo = auto ? (iso === addDays(todayISO(), -1) ? "Resumen de ayer" : "Resumen del último día") : "Cierre del día";
+    const m = modal(`
+      <h3><span style="display:flex;align-items:center;gap:8px">${I("moon")} ${titulo}</span> <button class="ib" data-close>${I("x")}</button></h3>
+      <div class="muted" style="font-size:12px">${dObj.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}</div>
+      <div class="day-hero">
+        <div><div class="muted" style="font-size:12px">Generado</div><div class="big" data-count>${money(st.earned)}</div></div>
+        ${cmp}
+      </div>
+      <div class="grid g4 stagger">
+        <div class="card stat"><div class="lb">Cobradas</div><div class="v" data-count>${st.cobradas.length}</div><div class="s">comisiones</div></div>
+        <div class="card stat"><div class="lb">Entregadas</div><div class="v" data-count>${st.entregadas.length}</div><div class="s">terminadas ese día</div></div>
+        <div class="card stat"><div class="lb">Nuevas</div><div class="v" data-count>${st.nuevas.length}</div><div class="s">pedidos recibidos</div></div>
+        <div class="card stat"><div class="lb">Tiempo</div><div class="v" style="font-size:20px">${st.secs >= 60 ? hm(st.secs) : "—"}</div><div class="s">${st.tareas.length} ${st.tareas.length === 1 ? "tarea hecha" : "tareas hechas"}</div></div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-t"><span>Ganancias · últimos 14 días</span><span class="sub">en verde, este día</span></div>
+        ${barChart(hist.map((x) => ({ label: `${DSEM[x.d.getDay()]} ${x.d.getDate()}`, v: x.v, hl: x.k === iso, tip: `${DSEM[x.d.getDay()]} ${x.d.getDate()} ${MES[x.d.getMonth()]} · ${money(x.v)}` })), { h: 190 })}
+      </div>
+      ${st.cobradas.length ? `<div class="day-list" style="margin-top:10px">${st.cobradas.map((p) => `<div class="item" style="border-top-color:var(--line)">${avatar(p.client)}<div class="main"><div class="t">${esc(p.title)}</div><div class="m">${esc(p.client)}${p["Método de pago"] ? " · " + esc(p["Método de pago"]) : ""}</div></div><span class="amt">${money(p.usd)}</span></div>`).join("")}</div>` : ""}
+      <div class="day-msg">“${esc(msg)}”</div>
+      <div class="acts" style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+        ${auto ? `<button class="btn" data-close>Empezar el día</button>` : `<button class="btn ghost" data-close>Seguir trabajando</button><button class="btn" id="closeDayOk">${I("moon")} Cerrar el día</button>`}
+      </div>`, true);
+    countUp(m.el);
+    bindTips();
+    const ok = $("#closeDayOk", m.el);
+    if (ok) ok.addEventListener("click", () => {
+      const c = store.get("closed", {}); c[iso] = true; store.set("closed", c);
+      if (st.earned > 0) confetti(ok);
+      setTimeout(() => { m.close(); toast("Día cerrado. ¡Buen descanso!"); if (S.tab === "hoy") render(); }, st.earned > 0 ? 600 : 150);
+    });
+    if (auto) { const c = store.get("closed", {}); c[iso] = true; store.set("closed", c); }
+  }
+
+  // Al abrir la web un día nuevo, enseña una vez el resumen del último día en que la usaste
+  // (si no lo cerraste tú y hubo algo de actividad).
+  function checkNewDay() {
+    const t = todayISO(), last = store.get("lastDay", null);
+    store.set("lastDay", t);
+    if (!last || last >= t || addDays(last, 7) < t) return;
+    if (store.get("closed", {})[last] || $(".modal-bg")) return;
+    if (dayStats(last).activity) dayModal(last, { auto: true });
+  }
+
   // ================= Eventos por vista =================
   const rowId = (e) => { const it = e.target.closest("[data-id]"); return it ? it.dataset.id : null; };
   const BIND = {};
@@ -1230,6 +1325,7 @@
   BIND.hoy = () => {
     bindCommon();
     bindTasks("#addTask");
+    $("#endDay").addEventListener("click", () => dayModal(todayISO()));
     $("#nextq").addEventListener("click", () => {
       const p = $("#frase"); p.classList.add("out");
       setTimeout(() => { fraseIdx = (fraseIdx + 1) % FRASES.length; p.textContent = `“${FRASES[fraseIdx]}”`; p.classList.remove("out"); }, 300);
@@ -1293,6 +1389,7 @@
       if (a === "timer") {
         if (S.timers[id]) {
           const add = (Date.now() - S.timers[id]) / 1000;
+          logWork(add);
           delete S.timers[id]; store.set("timers", S.timers);
           patch("pedidos", id, { "Segundos trabajados": Math.round((Number(p["Segundos trabajados"]) || 0) + add) });
         } else {
@@ -1306,7 +1403,7 @@
       if (a === "del") { if (confirm("¿Mover este pedido a la papelera de Notion?")) remove("pedidos", id, b.closest(".item")); }
       if (a === "finish") {
         const ch = { Estado: "En espera de revisión", "Fecha de entrega": todayISO() };
-        if (S.timers[id]) { ch["Segundos trabajados"] = Math.round((Number(p["Segundos trabajados"]) || 0) + (Date.now() - S.timers[id]) / 1000); delete S.timers[id]; store.set("timers", S.timers); }
+        if (S.timers[id]) { logWork((Date.now() - S.timers[id]) / 1000); ch["Segundos trabajados"] = Math.round((Number(p["Segundos trabajados"]) || 0) + (Date.now() - S.timers[id]) / 1000); delete S.timers[id]; store.set("timers", S.timers); }
         confetti(b);
         b.closest(".item").classList.add("leaving");
         setTimeout(() => { patch("pedidos", id, ch); toast("Movido a Comisiones → esperando pago"); }, 380);
@@ -1459,7 +1556,8 @@
         await loadAll();
         sess.set("pin", pin);
         if ($("#remember").checked) store.set("pinRemember", pin);
-        start();
+        const lk = $(".lock"); if (lk) lk.classList.add("out");
+        setTimeout(start, 320);
       } catch (e) { S.pin = null; pin = ""; paint(); shake(); toast(e.message, true); }
     };
     const shake = () => { const p = $("#pins"); p.classList.remove("shake"); void p.offsetWidth; p.classList.add("shake"); };
@@ -1476,7 +1574,11 @@
 
   function start() {
     document.onkeydown = null;
+    document.body.classList.add("boot");
     shell(); lastTab = null; render(); loadRates();
+    setTimeout(() => document.body.classList.remove("boot"), 1400);
+    setTimeout(checkNewDay, 1100);
+    setInterval(() => { if (document.visibilityState === "visible" && store.get("lastDay", null) !== todayISO()) checkNewDay(); }, 60000);
     // Se actualiza solo cada 2 minutos cuando la pestaña está visible.
     setInterval(() => { if (document.visibilityState === "visible" && !$(".modal-bg") && !document.activeElement.matches("input,select")) loadAll().then(render).catch(() => {}); }, 120000);
     setInterval(() => { if (document.visibilityState === "visible") loadRates(); }, 30 * 60000);
