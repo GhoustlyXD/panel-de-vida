@@ -120,8 +120,17 @@
   }
 
   // Cambios optimistas: actualiza en pantalla y luego en Notion.
+  // Al pasar un pedido a Pagadas, "Fecha de pago" = hoy, salvo que hayas puesto tú otra fecha nueva.
+  // Las ganancias de cada día (cierre del día) se cuentan por esa fecha.
+  function stampPaid(db, row, changes) {
+    if (db !== "pedidos" || changes.Estado !== "Listo" || (row && row.Estado === "Listo")) return changes;
+    const typed = changes["Fecha de pago"];
+    if (!typed || (row && typed === row["Fecha de pago"])) return { ...changes, "Fecha de pago": todayISO() };
+    return changes;
+  }
   async function patch(db, id, changes) {
     const row = S.data[db].find((r) => r.id === id);
+    changes = stampPaid(db, row, changes);
     const before = row ? { ...row } : null;
     if (row) Object.assign(row, changes);
     render();
@@ -130,6 +139,7 @@
     catch (e) { if (row && before) Object.assign(row, before); render(); toast("No se pudo guardar: " + e.message, true); }
   }
   async function create(db, values) {
+    values = stampPaid(db, null, values);
     const tmp = { id: "tmp-" + Date.now(), ...values };
     S.data[db].push(tmp);
     render();
@@ -432,7 +442,7 @@
     s += `</g>`;
     items.forEach((d, i) => {
       const cx = pad.l + iw * (i + .5) / items.length, bh = Math.max(2, (d.v / max) * ih);
-      s += `<rect class="bar growbar ${red || d.red ? "red" : ""} ${d.hl ? "hl" : ""}" style="animation-delay:${i * 40}ms" x="${cx - bw / 2}" y="${pad.t + ih - bh}" width="${bw}" height="${bh}" rx="${Math.min(8, bw / 2)}" data-tip="${esc(d.tip || d.label + " · " + money(d.v))}"/>`;
+      s += `<rect class="bar growbar ${red || d.red ? "red" : ""} ${d.hl ? "hl" : ""}" style="animation-delay:${i * 40}ms" x="${cx - bw / 2}" y="${pad.t + ih - bh}" width="${bw}" height="${bh}" rx="${Math.min(8, bw / 2)}" ${d.day ? `data-day="${d.day}" ` : ""}data-tip="${esc(d.tip || d.label + " · " + money(d.v))}"/>`;
       if (items.length <= 14) s += `<text x="${cx}" y="${h - 6}" text-anchor="middle">${esc(d.label.length > 9 ? d.label.slice(0, 8) + "…" : d.label)}</text>`;
     });
     if (goal) { const y = pad.t + ih - (goal / max) * ih; s += `<line class="goal" x1="${pad.l}" x2="${W - pad.r}" y1="${y}" y2="${y}"/>`; }
@@ -505,7 +515,7 @@
 
     return `
       <div class="h-date">${now.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}</div>
-      <div class="h1">${greet}<button class="btn ghost sm ${hr >= 21 && !store.get("closed", {})[todayISO()] ? "glow" : ""}" id="endDay">${I("moon")} Cerrar el día</button></div>
+      <div class="h1">${greet}${store.get("closed", {})[todayISO()] ? `<button class="btn ghost sm" id="endDay">${I("check")} Resumen del día</button>` : `<button class="btn ghost sm ${hr >= 21 ? "glow" : ""}" id="endDay">${I("moon")} Cerrar el día</button>`}</div>
       <div class="grid g4 stagger">
         ${stat("check", "Hoy", `${done}/${tt.length}`, "tareas hechas", "", ring(tt.length ? done / tt.length : 0))}
         ${stat("cal", "Este mes", money(pm.reduce((a, p) => a + p.usd, 0)), `${pm.length} ${pm.length === 1 ? "comisión" : "comisiones"}`)}
@@ -1237,56 +1247,83 @@
     return { cobradas, entregadas, nuevas, tareas, secs, earned, activity: earned > 0 || entregadas.length || nuevas.length || tareas.length || secs > 60 };
   }
 
+  // Ventana del día: se puede ir a días anteriores (flechas o pulsando una barra) y reabrir el día.
   function dayModal(iso, { auto = false } = {}) {
-    const st = dayStats(iso);
-    const dObj = parseD(iso);
+    const m = modal(`<div id="dayBody"></div>`, true);
     const DSEM = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
-    // Últimos 14 días hasta ese día, para comparar.
-    const hist = Array.from({ length: 14 }, (_, i) => { const k = addDays(iso, i - 13), d = parseD(k); return { k, d, v: earnedOn(k) }; });
-    const prev7 = hist.slice(6, 13), avg7 = prev7.reduce((a, x) => a + x.v, 0) / 7;
-    const best = Math.max(...hist.slice(0, 13).map((x) => x.v));
-    const diff = avg7 > 0 ? ((st.earned - avg7) / avg7) * 100 : null;
-    const cmp = st.earned > 0 && st.earned >= best && best >= 0 && hist.some((x) => x.k !== iso && x.v > 0)
-      ? `<span class="cmp ok">🏆 Mejor día de las últimas 2 semanas</span>`
-      : st.earned === 0 && avg7 > 0 ? `<span class="cmp">Sin cobros ese día · media de 7 días: ${money(avg7)}</span>`
-      : diff == null ? (st.earned > 0 ? `<span class="cmp ok">Primer cobro de la semana</span>` : `<span class="cmp">Sin cobros en los 7 días anteriores</span>`)
-      : `<span class="cmp ${diff >= 0 ? "ok" : "bad"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff).toFixed(0)}% vs media de 7 días (${money(avg7)})</span>`;
-    const msg = st.earned > 0 ? (st.earned >= avg7 ? "Gran día. Lo has ganado, ahora descansa." : "Ha entrado dinero: cada cobro suma.")
-      : st.entregadas.length ? "Has entregado trabajo: el cobro llegará."
-      : st.tareas.length || st.secs > 60 ? "Día de avanzar. No todo se ve en la cuenta el mismo día."
-      : "Día tranquilo. Mañana más; descansar también cuenta.";
-    const titulo = auto ? (iso === addDays(todayISO(), -1) ? "Resumen de ayer" : "Resumen del último día") : "Cierre del día";
-    const m = modal(`
-      <h3><span style="display:flex;align-items:center;gap:8px">${I("moon")} ${titulo}</span> <button class="ib" data-close>${I("x")}</button></h3>
-      <div class="muted" style="font-size:12px">${dObj.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}</div>
-      <div class="day-hero">
-        <div><div class="muted" style="font-size:12px">Generado</div><div class="big" data-count>${money(st.earned)}</div></div>
-        ${cmp}
-      </div>
-      <div class="grid g4 stagger">
-        <div class="card stat"><div class="lb">Cobradas</div><div class="v" data-count>${st.cobradas.length}</div><div class="s">comisiones</div></div>
-        <div class="card stat"><div class="lb">Entregadas</div><div class="v" data-count>${st.entregadas.length}</div><div class="s">terminadas ese día</div></div>
-        <div class="card stat"><div class="lb">Nuevas</div><div class="v" data-count>${st.nuevas.length}</div><div class="s">pedidos recibidos</div></div>
-        <div class="card stat"><div class="lb">Tiempo</div><div class="v" style="font-size:20px">${st.secs >= 60 ? hm(st.secs) : "—"}</div><div class="s">${st.tareas.length} ${st.tareas.length === 1 ? "tarea hecha" : "tareas hechas"}</div></div>
-      </div>
-      <div class="card" style="margin-top:12px">
-        <div class="card-t"><span>Ganancias · últimos 14 días</span><span class="sub">en verde, este día</span></div>
-        ${barChart(hist.map((x) => ({ label: `${DSEM[x.d.getDay()]} ${x.d.getDate()}`, v: x.v, hl: x.k === iso, tip: `${DSEM[x.d.getDay()]} ${x.d.getDate()} ${MES[x.d.getMonth()]} · ${money(x.v)}` })), { h: 190 })}
-      </div>
-      ${st.cobradas.length ? `<div class="day-list" style="margin-top:10px">${st.cobradas.map((p) => `<div class="item" style="border-top-color:var(--line)">${avatar(p.client)}<div class="main"><div class="t">${esc(p.title)}</div><div class="m">${esc(p.client)}${p["Método de pago"] ? " · " + esc(p["Método de pago"]) : ""}</div></div><span class="amt">${money(p.usd)}</span></div>`).join("")}</div>` : ""}
-      <div class="day-msg">“${esc(msg)}”</div>
-      <div class="acts" style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
-        ${auto ? `<button class="btn" data-close>Empezar el día</button>` : `<button class="btn ghost" data-close>Seguir trabajando</button><button class="btn" id="closeDayOk">${I("moon")} Cerrar el día</button>`}
-      </div>`, true);
-    countUp(m.el);
-    bindTips();
-    const ok = $("#closeDayOk", m.el);
-    if (ok) ok.addEventListener("click", () => {
-      const c = store.get("closed", {}); c[iso] = true; store.set("closed", c);
-      if (st.earned > 0) confetti(ok);
-      setTimeout(() => { m.close(); toast("Día cerrado. ¡Buen descanso!"); if (S.tab === "hoy") render(); }, st.earned > 0 ? 600 : 150);
-    });
-    if (auto) { const c = store.get("closed", {}); c[iso] = true; store.set("closed", c); }
+    const isClosed = (k) => !!store.get("closed", {})[k];
+    const setClosed = (k, v) => { const c = store.get("closed", {}); if (v) c[k] = true; else delete c[k]; store.set("closed", c); };
+    if (auto) setClosed(iso, true);
+
+    const draw = (iso, first) => {
+      const today = todayISO(), isToday = iso === today;
+      const st = dayStats(iso);
+      const dObj = parseD(iso);
+      // Últimos 14 días hasta ese día, para comparar.
+      const hist = Array.from({ length: 14 }, (_, i) => { const k = addDays(iso, i - 13), d = parseD(k); return { k, d, v: earnedOn(k) }; });
+      const prev7 = hist.slice(6, 13), avg7 = prev7.reduce((a, x) => a + x.v, 0) / 7;
+      const best = Math.max(...hist.slice(0, 13).map((x) => x.v));
+      const diff = avg7 > 0 ? ((st.earned - avg7) / avg7) * 100 : null;
+      const cmp = st.earned > 0 && st.earned >= best && hist.some((x) => x.k !== iso && x.v > 0)
+        ? `<span class="cmp ok">🏆 Mejor día de las últimas 2 semanas</span>`
+        : st.earned === 0 && avg7 > 0 ? `<span class="cmp">Sin cobros ese día · media de 7 días: ${money(avg7)}</span>`
+        : diff == null ? (st.earned > 0 ? `<span class="cmp ok">Primer cobro de la semana</span>` : `<span class="cmp">Sin cobros en los 7 días anteriores</span>`)
+        : `<span class="cmp ${diff >= 0 ? "ok" : "bad"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff).toFixed(0)}% vs media de 7 días (${money(avg7)})</span>`;
+      const msg = st.earned > 0 ? (st.earned >= avg7 ? "Gran día. Lo has ganado, ahora descansa." : "Ha entrado dinero: cada cobro suma.")
+        : st.entregadas.length ? "Has entregado trabajo: el cobro llegará."
+        : st.tareas.length || st.secs > 60 ? "Día de avanzar. No todo se ve en la cuenta el mismo día."
+        : "Día tranquilo. Mañana más; descansar también cuenta.";
+      const closed = isClosed(iso);
+      const titulo = isToday ? (closed ? "Tu día (cerrado)" : "Cierre del día") : auto && first ? (iso === addDays(today, -1) ? "Resumen de ayer" : "Resumen del último día") : "Resumen del día";
+      let acts;
+      if (auto && first) acts = `<button class="btn" data-close>Empezar el día</button>`;
+      else if (isToday && closed) acts = `<span class="muted" style="font-size:12px;margin-right:auto">Puedes seguir trabajando: el resumen se actualiza solo.</span><button class="btn ghost" id="dayReopen">Reabrir el día</button><button class="btn" data-close>Vale</button>`;
+      else if (isToday) acts = `<button class="btn ghost" data-close>Seguir trabajando</button><button class="btn" id="closeDayOk">${I("moon")} Cerrar el día</button>`;
+      else acts = `<button class="btn ghost" id="dayToday">Ir a hoy</button><button class="btn" data-close>Cerrar</button>`;
+
+      $("#dayBody", m.el).innerHTML = `
+        <h3><span style="display:flex;align-items:center;gap:8px">${I("moon")} ${titulo}</span> <button class="ib" data-close>${I("x")}</button></h3>
+        <div class="day-nav">
+          <button class="ib" id="dayPrev" title="Día anterior">‹</button>
+          <span>${dObj.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}${closed && !isToday ? ` <span class="tag gray" style="margin-left:6px">cerrado</span>` : ""}</span>
+          <button class="ib" id="dayNext" title="Día siguiente" ${isToday ? "disabled" : ""}>›</button>
+        </div>
+        <div class="${first ? "" : "day-swap"}">
+        <div class="day-hero">
+          <div><div class="muted" style="font-size:12px">Generado · pedidos pasados a Pagadas</div><div class="big" data-count>${money(st.earned)}</div></div>
+          ${cmp}
+        </div>
+        <div class="grid g4 ${first ? "stagger" : ""}">
+          <div class="card stat"><div class="lb">Pagadas</div><div class="v" data-count>${st.cobradas.length}</div><div class="s">comisiones cobradas del todo</div></div>
+          <div class="card stat"><div class="lb">Entregadas</div><div class="v" data-count>${st.entregadas.length}</div><div class="s">terminadas ese día</div></div>
+          <div class="card stat"><div class="lb">Nuevas</div><div class="v" data-count>${st.nuevas.length}</div><div class="s">pedidos recibidos</div></div>
+          <div class="card stat"><div class="lb">Tiempo</div><div class="v" style="font-size:20px">${st.secs >= 60 ? hm(st.secs) : "—"}</div><div class="s">${st.tareas.length} ${st.tareas.length === 1 ? "tarea hecha" : "tareas hechas"}</div></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <div class="card-t"><span>Ganancias · últimos 14 días</span><span class="sub">pulsa una barra para ver ese día</span></div>
+          ${barChart(hist.map((x) => ({ label: `${DSEM[x.d.getDay()]} ${x.d.getDate()}`, v: x.v, hl: x.k === iso, day: x.k, tip: `${DSEM[x.d.getDay()]} ${x.d.getDate()} ${MES[x.d.getMonth()]} · ${money(x.v)}` })), { h: 190 })}
+        </div>
+        ${st.cobradas.length ? `<div class="day-list" style="margin-top:10px">${st.cobradas.map((p) => `<div class="item" style="border-top-color:var(--line)">${avatar(p.client)}<div class="main"><div class="t">${esc(p.title)}</div><div class="m">${esc(p.client)}${p["Método de pago"] ? " · " + esc(p["Método de pago"]) : ""}</div></div><span class="amt">${money(p.usd)}</span></div>`).join("")}</div>` : ""}
+        <div class="day-msg">“${esc(msg)}”</div>
+        </div>
+        <div class="acts" style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">${acts}</div>`;
+
+      countUp(m.el);
+      bindTips();
+      $("#dayPrev", m.el).onclick = () => draw(addDays(iso, -1));
+      $("#dayNext", m.el).onclick = () => { if (!isToday) draw(addDays(iso, 1)); };
+      $$(".chart .bar[data-day]", m.el).forEach((b) => b.addEventListener("click", () => { $("#tip").style.opacity = 0; draw(b.dataset.day); }));
+      const goToday = $("#dayToday", m.el); if (goToday) goToday.onclick = () => draw(today);
+      const reopen = $("#dayReopen", m.el);
+      if (reopen) reopen.onclick = () => { setClosed(iso, false); draw(iso); if (S.tab === "hoy") render(); toast("Día reabierto"); };
+      const ok = $("#closeDayOk", m.el);
+      if (ok) ok.onclick = () => {
+        setClosed(iso, true);
+        if (st.earned > 0) confetti(ok);
+        setTimeout(() => { m.close(); toast("Día cerrado. Si sigues trabajando, no pasa nada."); if (S.tab === "hoy") render(); }, st.earned > 0 ? 600 : 150);
+      };
+    };
+    draw(iso, true);
   }
 
   // Al abrir la web un día nuevo, enseña una vez el resumen del último día en que la usaste

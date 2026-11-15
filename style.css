@@ -354,3 +354,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; backgr
 .day-hero .cmp.bad { background: rgba(255,77,77,.1); color: var(--bad); }
 .day-msg { font-family: var(--serif); font-style: italic; font-size: 19px; color: #d6d6da; margin: 16px 0 4px; animation: rise .7s var(--ease) .35s both; }
 .day-list .item { padding: 9px 2px; }
+.day-nav { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin-top: -4px; }
+.day-nav > span { display: inline-block; }
+.day-nav > span::first-letter { text-transform: uppercase; }
+.day-nav .ib { width: 28px; height: 28px; font-size: 18px; line-height: 1; }
+.day-nav .ib:disabled { opacity: .3; cursor: default; }
+.day-swap { animation: viewIn .45s var(--ease) both; }
+.chart .bar[data-day] { cursor: pointer; }
