@@ -1066,6 +1066,30 @@
       } catch (e) { setSync("err"); toast("No se pudo subir la imagen: " + e.message, true); }
     }
   }
+  // Quita una imagen del pedido (solo de la propiedad "Imágenes" en Notion).
+  async function removeImage(id, index, url) {
+    const row = S.data.pedidos.find((x) => x.id === id);
+    if (!row) return;
+    if (S.demo) {
+      row["Imágenes"] = imgsOf(row).filter((_, i) => i !== index);
+      render(); refreshDetail(id); toast("Imagen quitada"); return;
+    }
+    setSync("busy");
+    try {
+      const res = await fetch(CFG.workerUrl.replace(/\/$/, "") + `/api/pedidos/${id}/quitar-imagen`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-PIN": S.pin || "" },
+        body: JSON.stringify({ url, index }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 405 || res.status === 404) throw new Error("tu Worker aún no tiene esta función: pega el worker.js nuevo en Cloudflare y haz Deploy");
+      if (!res.ok) throw new Error(data.error || "Error " + res.status);
+      if (data.pedido) Object.assign(row, data.pedido);
+      setSync("ok");
+      toast("Imagen quitada de Notion");
+      render(); refreshDetail(id);
+    } catch (e) { setSync("err"); toast("No se pudo quitar la imagen: " + e.message, true); refreshDetail(id); }
+  }
   function pickImages(id) {
     const inp = document.createElement("input");
     inp.type = "file"; inp.accept = "image/png,image/jpeg,image/webp,image/gif"; inp.multiple = true;
@@ -1091,6 +1115,7 @@
         <div class="muted" style="font-size:12.5px;margin-bottom:14px">${esc(p.client)} · ${estadoTag(p.Estado)}</div>
         <div class="viewer" id="drop">
           ${im.length ? `<img src="${esc(im[idx])}" alt="" referrerpolicy="no-referrer">
+            <button class="ib img-del" data-d="imgdel" title="Quitar esta imagen (el pedido no se borra)">${I("trash")}</button>
             ${im.length > 1 ? `<button class="nav-l ib" data-nav="-1">${I("chevl")}</button><button class="nav-r ib" data-nav="1">${I("chevr")}</button>` : ""}`
           : `<div class="dropmsg">${I("image")}<div>Arrastra aquí una imagen, pégala con Ctrl+V o pulsa “Añadir imagen”</div></div>`}
         </div>
@@ -1115,6 +1140,13 @@
       $$("[data-nav]", box).forEach((b) => b.addEventListener("click", () => { idx = (idx + Number(b.dataset.nav) + im.length) % im.length; draw(); }));
       $$("[data-th]", box).forEach((t) => t.addEventListener("click", () => { idx = Number(t.dataset.th); draw(); }));
       $("[data-d=img]", box).addEventListener("click", () => pickImages(id));
+      const del = $("[data-d=imgdel]", box);
+      if (del) del.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm(`¿Quitar esta imagen${im.length > 1 ? ` (${idx + 1} de ${im.length})` : ""}? El pedido no se borra.`)) return;
+        del.disabled = true;
+        await removeImage(id, idx, im[idx]);
+      });
       $("[data-d=time]", box).addEventListener("click", () => timeModal(id));
       bindUpfront(box);
       $("[data-d=edit]", box).addEventListener("click", () => { m.close(); pedidoModal(S.data.pedidos.find((x) => x.id === id)); });
