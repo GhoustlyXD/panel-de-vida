@@ -449,8 +449,8 @@
     return s + `</svg>`;
   }
 
-  function lineChart(items, { h = 170, money: isMoney = false } = {}) {
-    const W = 520, pad = { l: 34, r: 10, t: 12, b: 22 };
+  function lineChart(items, { h = 170, w = 520, money: isMoney = false } = {}) {
+    const W = w, pad = { l: 34, r: 10, t: 12, b: 22 };
     if (!items.length) return `<div class="empty">Sin datos</div>`;
     const max = niceMax(Math.max(...items.map((d) => d.v), isMoney ? 1 : 4));
     const iw = W - pad.l - pad.r, ih = h - pad.t - pad.b;
@@ -1282,6 +1282,7 @@
   // Ventana del día: se puede ir a días anteriores (flechas o pulsando una barra) y reabrir el día.
   function dayModal(iso, { auto = false } = {}) {
     const m = modal(`<div id="dayBody"></div>`, true);
+    $(".modal", m.el).classList.add("full");
     const DSEM = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
     const isClosed = (k) => !!store.get("closed", {})[k];
     const setClosed = (k, v) => { const c = store.get("closed", {}); if (v) c[k] = true; else delete c[k]; store.set("closed", c); };
@@ -1335,16 +1336,17 @@
       if (st.secs >= 60 || st.tareas.length) parts.push({ html: line("sun", [st.secs >= 60 ? `Cronómetro: <b>${hm(st.secs)}</b>` : "", st.tareas.length ? n(st.tareas.length, "tarea hecha", "tareas hechas") : ""].filter(Boolean).join(" · ")) });
       if (parts.length === 1) parts.push({ html: line("moon", `No hubo entregas ni cobros este día`) });
       parts.push({ cls: "sl-block", html: `<div class="card day-chart"><div class="card-t"><span>Ganancias · últimos 14 días</span><span class="sub">pulsa un punto para ver ese día</span></div>
-        ${lineChart(hist.map((x) => ({ label: `${DSEM[x.d.getDay()]} ${x.d.getDate()}`, v: x.v, hl: x.k === iso, day: x.k, tip: `${DSEM[x.d.getDay()]} ${x.d.getDate()} ${MES[x.d.getMonth()]} · ${money(x.v)}` })), { h: 200, money: true })}</div>` });
+        ${lineChart(hist.map((x) => ({ label: `${DSEM[x.d.getDay()]} ${x.d.getDate()}`, v: x.v, hl: x.k === iso, day: x.k, tip: `${DSEM[x.d.getDay()]} ${x.d.getDate()} ${MES[x.d.getMonth()]} · ${money(x.v)}` })), innerWidth < 900 ? { h: 220, w: 460, money: true } : { h: 250, w: 720, money: true })}</div>` });
       if (modelos.length) parts.push({ cls: "sl-block", html: `<div class="group-t" style="margin:4px 0 10px">Modelos pagados este día <span class="dim">${modelos.length}</span></div><div class="ggrid sm day-models">${modelos.map((p, i) => gcard(p, "sm").replace('class="gcard sm"', `class="gcard sm" style="--i:${i}"`)).join("")}</div>` });
-      if (porCobrar.length) parts.push({ cls: "sl-block", html: `<div class="day-wait"><div class="group-t" style="margin:0 0 4px">${isToday ? "¡Aún faltan por ser pagados para mañana!" : "Entregados ese día que aún esperan pago"} <span class="dim">${porCobrar.length}</span></div>
+      if (porCobrar.length) parts.push({ cls: "sl-block sl-wait", html: `<div class="day-wait"><div class="group-t" style="margin:0 0 4px">${isToday ? "¡Aún faltan por ser pagados para mañana!" : "Entregados ese día que aún esperan pago"} <span class="dim">${porCobrar.length}</span></div>
         <div class="muted" style="font-size:12px;margin-bottom:10px">Falta por cobrar: <b class="warn">${money(porCobrarUsd)}</b> · no cuentan como ingreso hasta que pasen a Pagadas</div>
         <div class="ggrid sm day-models">${porCobrar.map((p, i) => gcard(p, "sm").replace('class="gcard sm"', `class="gcard sm wait" style="--i:${i}"`)).join("")}</div></div>` });
       parts.push({ cls: "day-msg", html: `“${esc(msg)}”` });
       // Ritmo: al abrir, más pausado; al cambiar de día, más rápido.
       const gap = first ? 380 : 170;
       let t = first ? 150 : 40;
-      const steps = parts.map((s) => { const r = { ...s, d: t }; t += s.cls === "sl-block" ? gap * 1.6 : gap; return r; });
+      const steps = parts.map((s) => { const blk = (s.cls || "").includes("sl-block"); const r = { ...s, d: t, col: blk && !s.cls.includes("sl-wait") ? "r" : s.cls === "day-msg" ? "b" : "l" }; t += blk ? gap * 1.6 : gap; return r; });
+      const storyDiv = (s) => `<div class="story-line ${s.cls || ""}" data-d="${s.d}" style="--d:${s.d}ms">${s.html}</div>`;
 
       $("#dayBody", m.el).innerHTML = `
         <h3><span style="display:flex;align-items:center;gap:8px">${I("moon")} ${titulo}</span> <button class="ib" data-close>${I("x")}</button></h3>
@@ -1354,13 +1356,17 @@
           <button class="ib" id="dayNext" title="Día siguiente" ${isToday ? "disabled" : ""}>›</button>
         </div>
         <div class="day-story">
-          ${steps.map((s) => `<div class="story-line ${s.cls || ""}" style="--d:${s.d}ms">${s.html}</div>`).join("")}
+          <div class="day-grid">
+            <div class="day-l">${steps.filter((s) => s.col === "l").map(storyDiv).join("")}</div>
+            <div class="day-r">${steps.filter((s) => s.col === "r").map(storyDiv).join("")}</div>
+          </div>
+          ${steps.filter((s) => s.col === "b").map(storyDiv).join("")}
         </div>
         <div class="acts" style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap">${acts}</div>`;
 
       // Cada paso aparece a su tiempo y sus números cuentan desde 0 justo cuando se ve.
       const lines = $$(".story-line", m.el);
-      lines.forEach((el, i) => setTimeout(() => { if (el.isConnected) countUp(el); }, steps[i].d));
+      lines.forEach((el) => setTimeout(() => { if (el.isConnected) countUp(el); }, Number(el.dataset.d) || 0));
       $$(".chart .line", m.el).forEach((p) => p.style.setProperty("--len", Math.ceil(p.getTotalLength())));
       bindTips();
       $$("[data-open]", m.el).forEach((c) => c.addEventListener("click", () => detailModal(c.dataset.id)));
