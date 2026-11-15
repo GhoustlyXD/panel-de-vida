@@ -433,3 +433,17 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; backgr
 .dw-item b { font-size: 13px; color: var(--warn); font-variant-numeric: tabular-nums; }
 .day-story.now .dw-item { animation-delay: 0s !important; }
 .modal.full .day-msg { margin-top: 10px; }
+
+/* Cierre del día: sin barras de scroll; el gráfico ocupa el sitio libre y los modelos van en una fila */
+.modal.full, .modal.full .day-l, .modal.full .day-r, .modal.full .day-models { scrollbar-width: none; -ms-overflow-style: none; }
+.modal.full::-webkit-scrollbar, .modal.full .day-l::-webkit-scrollbar, .modal.full .day-r::-webkit-scrollbar, .modal.full .day-models::-webkit-scrollbar { display: none; }
+@media (min-width: 901px) {
+  .modal.full .day-r { display: flex; flex-direction: column; gap: 14px; overflow: hidden; padding-right: 0; }
+  .modal.full .day-r > .story-line { margin-top: 0; }
+  .modal.full .day-r > .story-line:first-child { flex: 1 1 auto; min-height: 160px; display: flex; }
+  .modal.full .day-chart { flex: 1; display: flex; flex-direction: column; min-height: 0; margin: 0; }
+  .modal.full .day-chart svg { flex: 1; min-height: 0; width: 100%; height: 100%; }
+  .modal.full .day-r .group-t { margin: 0 0 8px !important; }
+  .modal.full .day-r .day-models { display: grid; grid-auto-flow: column; grid-auto-columns: 150px; grid-template-columns: none; overflow-x: auto; padding-bottom: 2px; }
+  .modal.full .day-r .day-models .gcard .cover { aspect-ratio: 16 / 10; }
+}
